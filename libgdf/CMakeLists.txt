@@ -1,6 +1,7 @@
 #=============================================================================
 # Copyright 2018 BlazingDB, Inc.
 #     Copyright 2018 Percy Camilo Triveño Aucahuasi <percy@blazingdb.com>
+#     Copyright 2018 Cristhian Alberto Gonzales Castillo <cristhian@blazingdb.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,6 +51,7 @@ include(CTest)
 # Include custom modules (see cmake directory)
 include(ConfigureGoogleTest)
 include(ConfigureArrow)
+include(ConfigureParquetCpp)
 
 find_package(CUDA)
 set_package_properties(
@@ -88,6 +90,8 @@ else()
     message(FATAL_ERROR "Apache Arrow not found, please check your settings.")
 endif()
 
+get_property(PARQUETCPP_INCLUDE_DIRS TARGET Apache::ParquetCpp PROPERTY INTERFACE_INCLUDE_DIRECTORIES)
+
 include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/cub"
@@ -95,6 +99,7 @@ include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/cnmem/include"
     "${CUDA_INCLUDE_DIRS}"
     "${ARROW_INCLUDEDIR}"
+    "${PARQUETCPP_INCLUDE_DIRS}"
 )
 
 IF(CUDA_VERSION_MAJOR GREATER 7)
@@ -130,6 +135,20 @@ cuda_add_library(rmm SHARED
     thirdparty/cnmem/src/cnmem.cpp
 )
 target_link_libraries(rmm cuda)
+
+cuda_add_library(gdf-parquet
+    src/io/parquet/api.cpp
+    src/io/parquet/column_reader.cu
+    src/io/parquet/file_reader.cpp
+    src/io/parquet/file_reader_contents.cpp
+    src/io/parquet/page_reader.cpp
+    src/io/parquet/row_group_reader_contents.cpp
+    src/io/parquet/decoder/cu_level_decoder.cu
+    src/io/arrow/cu_decoder.cu
+    src/io/arrow/util/pinned_allocator.cu
+)
+
+target_link_libraries(gdf-parquet Apache::ParquetCpp)
 
 cuda_add_library(gdf SHARED
     src/binaryops.cu
@@ -226,5 +245,10 @@ if(GTEST_FOUND)
 else()
     message(AUTHOR_WARNING "Google C++ Testing Framework (Google Test) not found: automated tests are disabled.")
 endif()
+
+if(GDF_BENCHMARK)
+	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/bench)
+endif()
+
 # Print the project summary
 feature_summary(WHAT ALL INCLUDE_QUIET_PACKAGES FATAL_ON_MISSING_REQUIRED_PACKAGES)
