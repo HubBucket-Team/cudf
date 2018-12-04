@@ -25,6 +25,8 @@
 
 #include <cudf.h>
 #include <cudf/functions.h>
+#include <cudf/io_functions_cpp.h>
+#include <arrow/status.h>
  
 struct gdf_csv_test : public ::testing::Test {
   void TearDown() {
@@ -86,7 +88,11 @@ TEST(gdf_csv_test, CsvSimple)
 		args.skiprows 		= 0;
 		args.skipfooter 	= 0;
 		args.dayfirst 		= 0;
-
+		args.use_cols_int 	= NULL;
+		args.use_cols_char 	= NULL;
+        args.use_cols_char_len  = 0;
+        args.use_cols_int_len   = 0;
+        args.windowslinetermination = false;
 		error = read_csv(&args);
 	}
 
@@ -94,6 +100,68 @@ TEST(gdf_csv_test, CsvSimple)
 }
 
 
+TEST(gdf_csv_test, CsvSimpleRandomAccessFile)
+{
+
+	gdf_error error = GDF_SUCCESS;
+
+	csv_read_arg	args;
+
+    args.num_cols = 10;
+
+    args.names = new const char*[10] {
+    	"A",
+    	"B",
+    	"C",
+    	"D",
+    	"E",
+    	"F",
+    	"G",
+    	"H",
+    	"I",
+    	"J"
+    };
+
+    args.dtype = new const char *[10]{
+    		"int32",
+    		"int32",
+    		"int32",
+    		"int32",
+    		"int32",
+    		"int32",
+    		"int32",
+    		"int32",
+    		"int32",
+    		"int32"
+    };
+
+
+
+
+	std::shared_ptr<arrow::io::ReadableFile> readable_file;
+	EXPECT_TRUE(arrow::io::ReadableFile::Open(std::string("/tmp/simple.csv"), &readable_file).ok());
+
+
+
+	args.delimiter 		= ',';
+	args.lineterminator = '\n';
+	args.delim_whitespace = 0;
+	args.skipinitialspace = 0;
+	args.skiprows 		= 0;
+	args.skipfooter 	= 0;
+	args.dayfirst 		= 0;
+	args.use_cols_int 	= NULL;
+	args.use_cols_char 	= NULL;
+    args.use_cols_char_len  = 0;
+    args.use_cols_int_len   = 0;
+    args.windowslinetermination = false;
+	error = read_csv_arrow(&args,readable_file);
+
+
+	EXPECT_TRUE( error == GDF_SUCCESS );
+	EXPECT_TRUE( args.num_cols_out == 10);
+
+}
 
 TEST(gdf_csv_test, MortPerf)
 {

@@ -2,7 +2,7 @@
  * Copyright (c) 2018, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
-	 * you may not use this file except in compliance with the License.
+ * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -32,6 +32,7 @@
 #include <vector>
 #include <unordered_map>
 
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -53,10 +54,14 @@
 
 #include "cudf.h"
 #include "utilities/error_utils.h"
- 
+
 #include "rmm/rmm.h"
 
 #include "NVStrings.h"
+
+#include "arrow/status.h"
+#include "arrow/io/interfaces.h"
+#include <arrow/io/file.h>
 
 constexpr int32_t HASH_SEED = 33;
 
@@ -64,25 +69,25 @@ using namespace std;
 
 //-- define the structure for raw data handling - for internal use
 typedef struct raw_csv_ {
-    char *				data;			// on-device: the raw unprocessed CSV data - loaded as a large char * array
-    unsigned long long*	d_num_records;	// on-device: Number of records.
-    unsigned long long*	recStart;		// on-device: Starting position of the records.
+	char *				data;			// on-device: the raw unprocessed CSV data - loaded as a large char * array
+	unsigned long long*	d_num_records;	// on-device: Number of records.
+	unsigned long long*	recStart;		// on-device: Starting position of the records.
 
-    char				delimiter;		// host: the delimiter
-    char				terminator;		// host: the line terminator
+	char				delimiter;		// host: the delimiter
+	char				terminator;		// host: the line terminator
 
-    long				num_bytes;		// host: the number of bytes in the data
-    long				num_bits;		// host: the number of 64-bit bitmaps (different than valid)
+	long				num_bytes;		// host: the number of bytes in the data
+	long				num_bits;		// host: the number of 64-bit bitmaps (different than valid)
 	unsigned long long 	num_records;  	// host: number of records (per column)
 	// int				num_cols;		// host: number of columns
 	int					num_active_cols;	// host: number of columns that will be return to user.
 	int					num_actual_cols;	// host: number of columns in the file --- based on the number of columns in header
-    vector<gdf_dtype>	dtypes;			// host: array of dtypes (since gdf_columns are not created until end)
-    vector<string>		col_names;		// host: array of column names
-    bool* 				h_parseCol;		// host   : array of booleans stating if column should be parsed in reading process: parseCol[x]=false means that the column x needs to be filtered out.
-    bool* 				d_parseCol;		// device : array of booleans stating if column should be parsed in reading process: parseCol[x]=false means that the column x needs to be filtered out.
-    long 				header_row;		// Row id of the header
-    bool				dayfirst;
+	vector<gdf_dtype>	dtypes;			// host: array of dtypes (since gdf_columns are not created until end)
+	vector<string>		col_names;		// host: array of column names
+	bool* 				h_parseCol;		// host   : array of booleans stating if column should be parsed in reading process: parseCol[x]=false means that the column x needs to be filtered out.
+	bool* 				d_parseCol;		// device : array of booleans stating if column should be parsed in reading process: parseCol[x]=false means that the column x needs to be filtered out.
+	long 				header_row;		// Row id of the header
+	bool				dayfirst;
 } raw_csv_t;
 
 typedef struct column_data_{
@@ -112,7 +117,6 @@ gdf_dtype convertStringToDtype(std::string &dtype);
 //
 //---------------CUDA Kernel ---------------------------------------------
 //
-
 __device__ int findSetBit(int tid, long num_bits, uint64_t *f_bits, int x);
 
 gdf_error launch_countRecords(raw_csv_t * csvData);
@@ -120,6 +124,8 @@ gdf_error launch_storeRecordStart(raw_csv_t * csvData);
 gdf_error launch_dataConvertColumns(raw_csv_t * raw_csv, void** d_gdf,  gdf_valid_type** valid, gdf_dtype* d_dtypes, string_pair	**str_cols, long row_offset, unsigned long long *);
 
 gdf_error launch_dataTypeDetection(raw_csv_t * raw_csv, long row_offset, column_data_t* d_columnData);
+
+gdf_error read_file_into_buffer(std::shared_ptr<arrow::io::RandomAccessFile> file, int64_t bytes_to_read, uint8_t* buffer, int total_read_attempts_allowed, int empty_reads_allowed);
 
 __global__ void countRecords(char *data, const char delim, const char terminator, long num_bytes, long num_bits, unsigned long long* num_records);
 __global__ void storeRecordStart(char *data, const char delim, const char terminator, long num_bytes, long num_bits, unsigned long long* num_records,unsigned long long* recStart) ;
@@ -153,16 +159,16 @@ __device__ void setBit(gdf_valid_type* address, int bit) {
 std::string stringType(gdf_dtype dt){
 
 	switch (dt){
-		case GDF_STRING: return std::string("str");
-		case GDF_DATE64: return std::string("date64");
-		case GDF_CATEGORY: return std::string("category");
-		case GDF_FLOAT64: return std::string("float64");
-		case GDF_INT8: return std::string("int8");
-		case GDF_INT16: return std::string("int16");
-		case GDF_INT32: return std::string("int32");
-		case GDF_INT64: return std::string("int64");
-		default:
-			return "long";
+	case GDF_STRING: return std::string("str");
+	case GDF_DATE64: return std::string("date64");
+	case GDF_CATEGORY: return std::string("category");
+	case GDF_FLOAT64: return std::string("float64");
+	case GDF_INT8: return std::string("int8");
+	case GDF_INT16: return std::string("int16");
+	case GDF_INT32: return std::string("int32");
+	case GDF_INT64: return std::string("int64");
+	default:
+		return "long";
 	}
 
 
@@ -206,9 +212,12 @@ std::string stringType(gdf_dtype dt){
  * @return gdf_error
  *
  */
-gdf_error read_csv(csv_read_arg *args)
+gdf_error read_csv_arrow(csv_read_arg *args, std::shared_ptr<arrow::io::RandomAccessFile> arrow_file_handle)
 {
 	gdf_error error = gdf_error::GDF_SUCCESS;
+	if(arrow_file_handle == nullptr){
+		checkError(GDF_FILE_ERROR,"fileHandle null (file probably does not exist)");
+	}
 
 	//-----------------------------------------------------------------------------
 	// create the CSV data structure - this will be filled in as the CSV data is processed.
@@ -234,26 +243,21 @@ gdf_error read_csv(csv_read_arg *args)
 	raw_csv->dayfirst = args->dayfirst;
 
 	//-----------------------------------------------------------------------------
-	// memory map in the data
+	// read data from arrow file
 	void * 			map_data = NULL;
-	struct stat     st;
-	int				fd;
 
-	fd = open(args->file_path, O_RDONLY );
-
-	if (fd < 0) 		{ close(fd); checkError(GDF_FILE_ERROR, "Error opening file"); }
-	if (fstat(fd, &st)) { close(fd); checkError(GDF_FILE_ERROR, "cannot stat file");   }
-
-	raw_csv->num_bytes = st.st_size;
-
-	map_data = mmap(0, raw_csv->num_bytes, PROT_READ, MAP_PRIVATE, fd, 0);
-
-    if (map_data == MAP_FAILED || raw_csv->num_bytes==0) { close(fd); checkError(GDF_C_ERROR, "Error mapping file"); }
+	arrow_file_handle->GetSize(&raw_csv->num_bytes);
+	map_data = (void *) malloc(raw_csv->num_bytes);
+	error = read_file_into_buffer(arrow_file_handle, raw_csv->num_bytes, (uint8_t*) map_data,100,10);
+	checkError(error, "reading from file into system memory");
+	//done reading data from map
+	arrow_file_handle->Close();
 
 	//-----------------------------------------------------------------------------
 	//---  create a structure to hold variables used to parse the CSV data
 	error = updateRawCsv( (const char *)map_data, (long)raw_csv->num_bytes, raw_csv );
 	checkError(error, "call to createRawCsv");
+
 
 
 	//-----------------------------------------------------------------------------
@@ -437,9 +441,10 @@ gdf_error read_csv(csv_read_arg *args)
 	}
 
 	//-----------------------------------------------------------------------------
-	//---  done with host data
-	close(fd);
-	munmap(map_data, raw_csv->num_bytes);
+	//---  done with host dataa
+	free(map_data);
+
+
 
 
 	//-----------------------------------------------------------------------------
@@ -459,13 +464,13 @@ gdf_error read_csv(csv_read_arg *args)
 
 		CUDA_TRY( cudaMemcpy(h_ColumnData,d_ColumnData, sizeof(column_data_t) * (raw_csv->num_active_cols), cudaMemcpyDeviceToHost));
 
-	    vector<gdf_dtype>	d_detectedTypes;			// host: array of dtypes (since gdf_columns are not created until end)
+		vector<gdf_dtype>	d_detectedTypes;			// host: array of dtypes (since gdf_columns are not created until end)
 
 		raw_csv->dtypes.clear();
 
 		for(int col = 0; col < raw_csv->num_active_cols; col++){
 			unsigned long long countInt = h_ColumnData[col].countInt8+h_ColumnData[col].countInt16+
-										  h_ColumnData[col].countInt32+h_ColumnData[col].countInt64;
+					h_ColumnData[col].countInt32+h_ColumnData[col].countInt64;
 
 			if (h_ColumnData[col].countNULL == raw_csv->num_records){
 				d_detectedTypes.push_back(GDF_INT8); // Entire column is NULL. Allocating the smallest amount of memory
@@ -474,7 +479,7 @@ gdf_error read_csv(csv_read_arg *args)
 			} else if(h_ColumnData[col].countDateAndTime>0L){
 				d_detectedTypes.push_back(GDF_DATE64);
 			} else if(h_ColumnData[col].countFloat > 0L  ||  
-				(h_ColumnData[col].countFloat==0L && countInt >0L && h_ColumnData[col].countNULL >0L) ) {
+					(h_ColumnData[col].countFloat==0L && countInt >0L && h_ColumnData[col].countNULL >0L) ) {
 				// The second condition has been added to conform to PANDAS which states that a colum of 
 				// integers with a single NULL record need to be treated as floats.
 				d_detectedTypes.push_back(GDF_FLOAT64);
@@ -509,7 +514,7 @@ gdf_error read_csv(csv_read_arg *args)
 
 	void **d_data,**h_data;
 	gdf_valid_type **d_valid,**h_valid;
-    unsigned long long	*d_valid_count,*h_valid_count;
+	unsigned long long	*d_valid_count,*h_valid_count;
 	gdf_dtype *d_dtypes,*h_dtypes;
 
 
@@ -576,7 +581,7 @@ gdf_error read_csv(csv_read_arg *args)
 	free(h_dtypes); 
 	free(h_valid); 
 	free(h_data); 
-	
+
 	launch_dataConvertColumns(raw_csv,d_data, d_valid, d_dtypes,d_str_cols, args->skiprows, d_valid_count);
 	cudaDeviceSynchronize();
 
@@ -633,7 +638,15 @@ gdf_error read_csv(csv_read_arg *args)
 	return error;
 }
 
+gdf_error read_csv(csv_read_arg *args){
+	std::shared_ptr<arrow::io::ReadableFile> arrow_file_handle;
 
+	if (!arrow::io::ReadableFile::Open(std::string(args->file_path), &arrow_file_handle).ok()) {
+		checkError(GDF_FILE_ERROR,"fileHandle null (file probably does not exist)");
+	}
+
+	return read_csv_arrow(args,arrow_file_handle);
+}
 
 /*
  * What is passed in is the data type as a string, need to convert that into gdf_dtype enum
@@ -696,43 +709,43 @@ gdf_error allocateGdfDataSpace(gdf_column *gdf) {
 	int elementSize=0;
 	//--- Allocate space for the data
 	switch(gdf->dtype) {
-		case gdf_dtype::GDF_INT8:
-			elementSize = sizeof(int8_t);
-			break;
-		case gdf_dtype::GDF_INT16:
-			elementSize = sizeof(int16_t);
-			break;
-		case gdf_dtype::GDF_INT32:
-			elementSize = sizeof(int32_t);
-			break;
-		case gdf_dtype::GDF_INT64:
-			elementSize = sizeof(int64_t);
-			break;
-		case gdf_dtype::GDF_FLOAT32:
-			elementSize = sizeof(float);
-			break;
-		case gdf_dtype::GDF_FLOAT64:
-			elementSize = sizeof(double);
-			break;
-		case gdf_dtype::GDF_DATE32:
-			elementSize = sizeof(gdf_date32);
-			break;
-		case gdf_dtype::GDF_DATE64:
-			elementSize = sizeof(gdf_date64);
-			break;
-		case gdf_dtype::GDF_TIMESTAMP:
-			elementSize = sizeof(int64_t);
-			break;
-		case gdf_dtype::GDF_CATEGORY:
-			elementSize = sizeof(gdf_category);
-			break;
-		case gdf_dtype::GDF_STRING:
-			return gdf_error::GDF_SUCCESS;
-			// Memory for gdf->data allocated by string class eventually
-		default:
-			return GDF_UNSUPPORTED_DTYPE;
+	case gdf_dtype::GDF_INT8:
+		elementSize = sizeof(int8_t);
+		break;
+	case gdf_dtype::GDF_INT16:
+		elementSize = sizeof(int16_t);
+		break;
+	case gdf_dtype::GDF_INT32:
+		elementSize = sizeof(int32_t);
+		break;
+	case gdf_dtype::GDF_INT64:
+		elementSize = sizeof(int64_t);
+		break;
+	case gdf_dtype::GDF_FLOAT32:
+		elementSize = sizeof(float);
+		break;
+	case gdf_dtype::GDF_FLOAT64:
+		elementSize = sizeof(double);
+		break;
+	case gdf_dtype::GDF_DATE32:
+		elementSize = sizeof(gdf_date32);
+		break;
+	case gdf_dtype::GDF_DATE64:
+		elementSize = sizeof(gdf_date64);
+		break;
+	case gdf_dtype::GDF_TIMESTAMP:
+		elementSize = sizeof(int64_t);
+		break;
+	case gdf_dtype::GDF_CATEGORY:
+		elementSize = sizeof(gdf_category);
+		break;
+	case gdf_dtype::GDF_STRING:
+		return gdf_error::GDF_SUCCESS;
+		// Memory for gdf->data allocated by string class eventually
+	default:
+		return GDF_UNSUPPORTED_DTYPE;
 	}
-	
+
 	RMM_TRY( RMM_ALLOC((void**)&gdf->data, elementSize * N, 0) );
 
 	return gdf_error::GDF_SUCCESS;
@@ -884,28 +897,30 @@ __global__ void storeRecordStart(char *data, const char delim, const char termin
 
 gdf_error launch_dataConvertColumns(raw_csv_t * raw_csv, void **gdf, gdf_valid_type** valid, gdf_dtype* d_dtypes,string_pair **str_cols, long row_offset, unsigned long long *num_valid) {
 
-	int64_t threads 	= 1024;
+	int64_t threads 	= 512;
 	int64_t blocks 		= (  raw_csv->num_records + (threads -1)) / threads ;
 
 
 	convertCsvToGdf <<< blocks, threads >>>(
-		raw_csv->data,
-		raw_csv->delimiter,
-		raw_csv->terminator,
-		raw_csv->num_records,
-		raw_csv->num_actual_cols,
-		raw_csv->d_parseCol,
-		raw_csv->recStart,
-		d_dtypes,
-		gdf,
-		valid,
-		str_cols,
-		row_offset,
-		raw_csv->header_row,
-		raw_csv->dayfirst,
-		num_valid
+			raw_csv->data,
+			raw_csv->delimiter,
+			raw_csv->terminator,
+			raw_csv->num_records,
+			raw_csv->num_actual_cols,
+			raw_csv->d_parseCol,
+			raw_csv->recStart,
+			d_dtypes,
+			gdf,
+			valid,
+			str_cols,
+			row_offset,
+			raw_csv->header_row,
+			raw_csv->dayfirst,
+			num_valid
 	);
 
+	cudaDeviceSynchronize();
+	CUDA_TRY(cudaGetLastError());
 
 	return GDF_SUCCESS;
 }
@@ -931,7 +946,7 @@ __global__ void convertCsvToGdf(
 		long 			header_row,
 		bool			dayfirst,
 		unsigned long long			*num_valid
-		)
+)
 {
 
 
@@ -968,10 +983,10 @@ __global__ void convertCsvToGdf(
 			else if (raw_csv[pos] == terminator){
 				break;
 			}
-            else if(raw_csv[pos] == '\r' &&  ((pos+1) < stop && raw_csv[pos+1]=='\n')){
-            	stop--;
-                break;
-            }
+			else if(raw_csv[pos] == '\r' &&  ((pos+1) < stop && raw_csv[pos+1]=='\n')){
+				stop--;
+				break;
+			}
 			if(pos>=stop)
 				break;
 			pos++;
@@ -989,73 +1004,73 @@ __global__ void convertCsvToGdf(
 			if(start<=(tempPos)) { // Empty strings are not legal values
 
 				switch(dtype[col]) {
-					case gdf_dtype::GDF_INT8:
-					{
-						int8_t *gdf_out = (int8_t *)gdf_data[actual_col];
-						gdf_out[rec_id] = convertStrtoInt<int8_t>(raw_csv, start, tempPos);
-					}
-						break;
-					case gdf_dtype::GDF_INT16: {
-						int16_t *gdf_out = (int16_t *)gdf_data[actual_col];
-						gdf_out[rec_id] = convertStrtoInt<int16_t>(raw_csv, start, tempPos);
-					}
-						break;
-					case gdf_dtype::GDF_INT32:
-					{
-						int32_t *gdf_out = (int32_t *)gdf_data[actual_col];
-						gdf_out[rec_id] = convertStrtoInt<int32_t>(raw_csv, start, tempPos);
-					}
-						break;
-					case gdf_dtype::GDF_INT64:
-					{
-						int64_t *gdf_out = (int64_t *)gdf_data[actual_col];
-						gdf_out[rec_id] = convertStrtoInt<int64_t>(raw_csv, start, tempPos);
-					}
-						break;
-					case gdf_dtype::GDF_FLOAT32:
-					{
-						float *gdf_out = (float *)gdf_data[actual_col];
-						gdf_out[rec_id] = convertStrtoFloat<float>(raw_csv, start, tempPos);
-					}
-						break;
-					case gdf_dtype::GDF_FLOAT64:
-					{
-						double *gdf_out = (double *)gdf_data[actual_col];
-						gdf_out[rec_id] = convertStrtoFloat<double>(raw_csv, start, tempPos);
-					}
-						break;
-					case gdf_dtype::GDF_DATE32:
-					{
-						gdf_date32 *gdf_out = (gdf_date32 *)gdf_data[actual_col];
-						gdf_out[rec_id] = parseDateFormat(raw_csv, start, tempPos, dayfirst);
-					}
-						break;
-					case gdf_dtype::GDF_DATE64:
-					{
-						gdf_date64 *gdf_out = (gdf_date64 *)gdf_data[actual_col];
-						gdf_out[rec_id] = parseDateTimeFormat(raw_csv, start, tempPos, dayfirst);
-					}
-						break;
-					case gdf_dtype::GDF_TIMESTAMP:
-					{
-						int64_t *gdf_out = (int64_t *)gdf_data[actual_col];
-						gdf_out[rec_id] = convertStrtoInt<int64_t>(raw_csv, start, tempPos);
-					}
+				case gdf_dtype::GDF_INT8:
+				{
+					int8_t *gdf_out = (int8_t *)gdf_data[actual_col];
+					gdf_out[rec_id] = convertStrtoInt<int8_t>(raw_csv, start, tempPos);
+				}
+				break;
+				case gdf_dtype::GDF_INT16: {
+					int16_t *gdf_out = (int16_t *)gdf_data[actual_col];
+					gdf_out[rec_id] = convertStrtoInt<int16_t>(raw_csv, start, tempPos);
+				}
+				break;
+				case gdf_dtype::GDF_INT32:
+				{
+					int32_t *gdf_out = (int32_t *)gdf_data[actual_col];
+					gdf_out[rec_id] = convertStrtoInt<int32_t>(raw_csv, start, tempPos);
+				}
+				break;
+				case gdf_dtype::GDF_INT64:
+				{
+					int64_t *gdf_out = (int64_t *)gdf_data[actual_col];
+					gdf_out[rec_id] = convertStrtoInt<int64_t>(raw_csv, start, tempPos);
+				}
+				break;
+				case gdf_dtype::GDF_FLOAT32:
+				{
+					float *gdf_out = (float *)gdf_data[actual_col];
+					gdf_out[rec_id] = convertStrtoFloat<float>(raw_csv, start, tempPos);
+				}
+				break;
+				case gdf_dtype::GDF_FLOAT64:
+				{
+					double *gdf_out = (double *)gdf_data[actual_col];
+					gdf_out[rec_id] = convertStrtoFloat<double>(raw_csv, start, tempPos);
+				}
+				break;
+				case gdf_dtype::GDF_DATE32:
+				{
+					gdf_date32 *gdf_out = (gdf_date32 *)gdf_data[actual_col];
+					gdf_out[rec_id] = parseDateFormat(raw_csv, start, tempPos, dayfirst);
+				}
+				break;
+				case gdf_dtype::GDF_DATE64:
+				{
+					gdf_date64 *gdf_out = (gdf_date64 *)gdf_data[actual_col];
+					gdf_out[rec_id] = parseDateTimeFormat(raw_csv, start, tempPos, dayfirst);
+				}
+				break;
+				case gdf_dtype::GDF_TIMESTAMP:
+				{
+					int64_t *gdf_out = (int64_t *)gdf_data[actual_col];
+					gdf_out[rec_id] = convertStrtoInt<int64_t>(raw_csv, start, tempPos);
+				}
+				break;
+				case gdf_dtype::GDF_CATEGORY:
+				{
+					gdf_category *gdf_out = (gdf_category *)gdf_data[actual_col];
+					gdf_out[rec_id] = convertStrtoHash(raw_csv, start, pos, HASH_SEED);
+				}
+				break;
+				case gdf_dtype::GDF_STRING:{
+					str_cols[stringCol][rec_id].first 	= raw_csv+start;
+					str_cols[stringCol][rec_id].second 	= size_t(pos-start);
+					stringCol++;
+				}
+				break;
+				default:
 					break;
-					case gdf_dtype::GDF_CATEGORY:
-					{
-						gdf_category *gdf_out = (gdf_category *)gdf_data[actual_col];
-						gdf_out[rec_id] = convertStrtoHash(raw_csv, start, pos, HASH_SEED);
-					}
-						break;
-					case gdf_dtype::GDF_STRING:{
-						str_cols[stringCol][rec_id].first 	= raw_csv+start;
-						str_cols[stringCol][rec_id].second 	= size_t(pos-start);
-						stringCol++;
-					}
-						break;
-					default:
-						break;
 				}
 
 				// set the valid bitmap - all bits were set to 0 to start
@@ -1072,9 +1087,9 @@ __global__ void convertCsvToGdf(
 			}
 			actual_col++;
 		}
-			pos++;
-			start=pos;
-			col++;	
+		pos++;
+		start=pos;
+		col++;
 
 	}
 }
@@ -1085,27 +1100,29 @@ __global__ void convertCsvToGdf(
 
 
 gdf_error launch_dataTypeDetection(
-	raw_csv_t * raw_csv, 
-	long row_offset,
-	column_data_t* d_columnData) 
+		raw_csv_t * raw_csv,
+		long row_offset,
+		column_data_t* d_columnData)
 {
-	int64_t threads 	= 1024;
+	int64_t threads 	= 512; //this was reduced from 1024 because this kernel requires 103 registers per thread compiling with sm 60, 61, and 70 using cuda 9,2
 	int64_t blocks 		= (  raw_csv->num_records + (threads -1)) / threads ;
 
 
 	dataTypeDetection <<< blocks, threads >>>(
-		raw_csv->data,
-		raw_csv->delimiter,
-		raw_csv->terminator,
-		raw_csv->num_records,
-		raw_csv->num_actual_cols,
-		raw_csv->d_parseCol,
-		raw_csv->recStart,
-		row_offset,
-		raw_csv->header_row,
-		d_columnData
+			raw_csv->data,
+			raw_csv->delimiter,
+			raw_csv->terminator,
+			raw_csv->num_records,
+			raw_csv->num_actual_cols,
+			raw_csv->d_parseCol,
+			raw_csv->recStart,
+			row_offset,
+			raw_csv->header_row,
+			d_columnData
 	);
 
+	cudaDeviceSynchronize();
+	CUDA_TRY(cudaGetLastError());
 	return GDF_SUCCESS;
 }
 
@@ -1122,7 +1139,7 @@ __global__ void dataTypeDetection(
 		unsigned long long  			row_offset,
 		long 			header_row,
 		column_data_t* d_columnData
-		)
+)
 {
 
 	// thread IDs range per block, so also need the block id
@@ -1159,10 +1176,10 @@ __global__ void dataTypeDetection(
 			else if (raw_csv[pos] == terminator){
 				break;
 			}
-            else if(raw_csv[pos] == '\r' &&  ((pos+1) < stop && raw_csv[pos+1]=='\n')){
-            	stop--;
-                break;
-            }
+			else if(raw_csv[pos] == '\r' &&  ((pos+1) < stop && raw_csv[pos+1]=='\n')){
+				stop--;
+				break;
+			}
 			if(pos>stop)
 				break;
 			pos++;
@@ -1202,17 +1219,17 @@ __global__ void dataTypeDetection(
 				}
 				// Looking for unique characters that will help identify column types.
 				switch (raw_csv[startPos]){
-					case '.':
-						countDecimal++;break;
-					case '-':
-						countDash++; break;
-					case '/':
-						countSlash++;break;
-					case ':':
-						countColon++;break;
-					default:
-						countString++;
-						break;	
+				case '.':
+					countDecimal++;break;
+				case '-':
+					countDash++; break;
+				case '/':
+					countSlash++;break;
+				case ':':
+					countColon++;break;
+				default:
+					countString++;
+					break;
 				}
 			}
 
@@ -1237,7 +1254,7 @@ __global__ void dataTypeDetection(
 			}
 			// Floating point numbers are made up of numerical strings, have to have a decimal sign, and can have a minus sign.
 			else if((countNumber==(strLen-1) && countDecimal==1) || (strLen>2 && countNumber==(strLen-2) && raw_csv[start]=='-')){
-					atomicAdd(& d_columnData[actual_col].countFloat, 1L);
+				atomicAdd(& d_columnData[actual_col].countFloat, 1L);
 			}
 			// The date-time field cannot have more than 3 strings. As such if an entry has more than 3 string characters, it is not 
 			// a data-time field. Also, if a string has multiple decimals, then is not a legit number.
@@ -1306,7 +1323,7 @@ __device__ int findSetBit(int tid, long num_bits, uint64_t *r_bits, int x) {
 
 		bitmap >>= 1;
 		++withinBitCount;
-	 }
+	}
 
 	offset += withinBitCount -1;
 
@@ -1314,4 +1331,48 @@ __device__ int findSetBit(int tid, long num_bits, uint64_t *r_bits, int x) {
 	return offset;
 }
 
+/**
+ * reads contents of an arrow::io::RandomAccessFile in a char * buffer up to the number of bytes specified in bytes_to_read
+ * for non local filesystems where latency and availability can be an issue it will retry until it has exhausted its the read attemps and empty reads that are allowed
+ */
+gdf_error read_file_into_buffer(std::shared_ptr<arrow::io::RandomAccessFile> file, int64_t bytes_to_read, uint8_t* buffer, int total_read_attempts_allowed, int empty_reads_allowed){
 
+	if (bytes_to_read > 0){
+
+		int64_t total_read;
+		arrow::Status status = file->Read(bytes_to_read,&total_read, buffer);
+
+		if (!status.ok()){
+			return GDF_FILE_ERROR;
+		}
+
+		if (total_read < bytes_to_read){
+			//the following two variables shoudl be explained
+			//Certain file systems can timeout like hdfs or nfs,
+			//so we shoudl introduce the capacity to retry
+			int total_read_attempts = 0;
+			int empty_reads = 0;
+
+			while (total_read < bytes_to_read && total_read_attempts < total_read_attempts_allowed && empty_reads < empty_reads_allowed){
+				int64_t bytes_read;
+				status = file->Read(bytes_to_read-total_read,&bytes_read, buffer + total_read);
+				if (!status.ok()){
+					return GDF_FILE_ERROR;
+				}
+				if (bytes_read == 0){
+					empty_reads++;
+				}
+				total_read += bytes_read;
+			}
+			if (total_read < bytes_to_read){
+				return GDF_FILE_ERROR;
+			} else {
+				return GDF_SUCCESS;
+			}
+		} else {
+			return GDF_SUCCESS;
+		}
+	} else {
+		return GDF_SUCCESS;
+	}
+}
