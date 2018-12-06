@@ -63,6 +63,7 @@ include(CheckLibraryExists)
 include(CTest)
 
 include(ConfigureGoogleTest)
+include(ConfigureGoogleBenchmark)
 include(ConfigureArrow)
 
 ###################################################################################################
@@ -86,9 +87,22 @@ else()
 endif(GTEST_FOUND)
 
 ###################################################################################################
+# - add gbenchmark --------------------------------------------------------------------------------
+
+if(GBENCHMARK_FOUND)
+    message(STATUS "Google C++ Benchmarking Framework (Google Benchmark) found in ${GBENCHMARK_ROOT}")
+    include_directories(${GBENCHMARK_INCLUDE_DIRS})
+    add_subdirectory(${CMAKE_SOURCE_DIR}/benchmarks)
+else()
+    message(AUTHOR_WARNING "Google C++ Benchmarking Framework (Google Benchmark) not found.")
+endif(GBENCHMARK_FOUND)
+
+
+###################################################################################################
 # - include paths ---------------------------------------------------------------------------------
 
 include_directories("${GTEST_INCLUDE_DIR}"
+                    "${GBENCHMARK_INCLUDE_DIR}"
                     "${ARROW_INCLUDE_DIR}"
                     "${FLATBUFFERS_INCLUDE_DIR}"
                     "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
@@ -105,7 +119,8 @@ include_directories("${GTEST_INCLUDE_DIR}"
 link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES is an undocumented/unsupported variable containing the link directories for nvcc
                  "${CMAKE_BINARY_DIR}/lib"
                  "${FLATBUFFERS_LIBRARY_DIR}"
-                 "${GTEST_LIBRARY_DIR}")
+                 "${GTEST_LIBRARY_DIR}"
+                 "${GBENCHMARK_LIBRARY_DIR}")
 
 ###################################################################################################
 # - nvstrings -------------------------------------------------------------------------------------
