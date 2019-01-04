@@ -912,6 +912,54 @@ gdf_error gdf_group_by_count(int ncols,                    // # columns
                              gdf_column* out_col_agg,      //aggregation result
                              gdf_context* ctxt);            //struct with additional info: bool is_sorted, flag_sort_or_hash, bool flag_count_distinct
 
+/* --------------------------------------------------------------------------*/
+  /**
+   * @brief Given a set of columns, of which a subset of these are defined to be the group by columns,
+   * all columns are sorted by the group by columns and returned, along with a column containing
+   * a list of the start indices of each group
+   *
+   * @Param[in] The number of columns in the dataset
+   * @Param[in] The input columns in the dataset
+   * @Param[in] The number of columns to be grouping by
+   * @Param[in] The column indices of the input dataset that will be grouped by
+   * @Param[out] The dataset sorted by the group by columns (needs to be pre-allocated)
+   * @Param[out] A column containing the starting indices of each group. Indices based off of new sort order. (needs to be pre-allocated)
+   * @Param[in] Flag indicating if nulls are smaller (0) or larger (1) than non nulls for the sort operation
+   *
+   * @Returns gdf_error with error code on failure, otherwise GDF_SUCESS
+   */
+  /* ----------------------------------------------------------------------------*/
+gdf_error gdf_group_by_wo_aggregations(int num_data_cols,
+                           	   	   	   gdf_column** data_cols_in,
+									   int num_groupby_cols,
+									   int * groupby_col_indices,
+									   gdf_column** data_cols_out,
+									   gdf_column* group_start_indices,
+									   int nulls_are_smallest);
+
+/* --------------------------------------------------------------------------*/
+  /**
+   * @brief Given a set of columns, of which a subset of these are defined to be the group by columns,
+   * all input data is assumed to already be sorted by these group by columns. 
+   * This function calculates a list of the start indices of each group
+   *
+   * @Param[in] The number of columns in the dataset (assumed to already be sorted)
+   * @Param[in] The input columns in the dataset
+   * @Param[in] The number of columns to be grouping by
+   * @Param[in] The column indices of the input dataset that will be grouped by
+   * @Param[out] A column containing the starting indices of each group. Indices based off of new sort order. (needs to be pre-allocated)
+   * @Param[in] Flag indicating if nulls are smaller (0) or larger (1) than non nulls for the sort operation
+   *
+   * @Returns gdf_error with error code on failure, otherwise GDF_SUCESS
+   */
+  /* ----------------------------------------------------------------------------*/
+gdf_error gdf_group_start_indices(int num_data_cols,
+                     gdf_column** data_cols_in,
+									   int num_groupby_cols,
+									   int * groupby_col_indices,
+									   gdf_column* group_start_indices,
+									   int nulls_are_smallest);
+
 gdf_error gdf_quantile_exact(	gdf_column*         col_in,       //input column with 0 null_count otherwise GDF_VALIDITY_UNSUPPORTED is returned
                                 gdf_quantile_method prec,         //precision: type of quantile method calculation
                                 double              q,            //requested quantile in [0,1]
