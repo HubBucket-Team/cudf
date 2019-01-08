@@ -27,6 +27,20 @@ bool gdf_is_valid(const gdf_valid_type *valid, gdf_index_type pos) {
 }
 
 
+// Buffers are padded to 64-byte boundaries (for SIMD) static
+constexpr int32_t kArrowAlignment = 64;
+
+// Tensors are padded to 64-byte boundaries static
+constexpr int32_t kTensorAlignment = 64;
+
+// Align on 8-byte boundaries in IPC static 
+constexpr int32_t kArrowIpcAlignment = 8;
+
+//todo, enable arrow ipc utils, and remove this method 
+static inline int64_t PaddedLength(int64_t nbytes, int32_t alignment = kArrowAlignment) {   
+	return ((nbytes + alignment - 1) / alignment) * alignment; 
+}
+
 /**
  * Calculates the size in bytes of a validity indicator pseudo-column for a given column's size.
  *

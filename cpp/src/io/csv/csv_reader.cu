@@ -53,6 +53,8 @@
 
 #include "cudf.h"
 #include "utilities/error_utils.h"
+#include "utilities/cudf_utils.h" 
+#include "utilities/bit_util.cuh"
  
 #include "rmm/rmm.h"
 
@@ -823,7 +825,9 @@ gdf_error updateRawCsv( const char * data, long num_bytes, raw_csv_t * raw ) {
 gdf_error allocateGdfDataSpace(gdf_column *gdf) {
 
 	long N = gdf->size;
-	long num_bitmaps = (N + 31) / 8;			// 8 bytes per bitmap
+	// long num_bitmaps = (N + 31) / 8; WTF?? long num_bitmaps =
+	long num_bitmaps = PaddedLength(get_number_of_bytes_for_valid(N)); // 64 bytes per bitmap
+
 
 	//--- allocate space for the valid bitmaps
 	RMM_TRY( RMM_ALLOC((void**)&gdf->valid, (sizeof(gdf_valid_type) * num_bitmaps), 0) );
