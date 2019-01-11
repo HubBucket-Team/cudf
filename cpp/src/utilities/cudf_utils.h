@@ -37,7 +37,8 @@ constexpr int32_t kTensorAlignment = 64;
 constexpr int32_t kArrowIpcAlignment = 8;
 
 //todo, enable arrow ipc utils, and remove this method 
-static inline int64_t PaddedLength(int64_t nbytes, int32_t alignment = kArrowAlignment) {   
+CUDA_HOST_DEVICE_CALLABLE
+static gdf_size_type PaddedLength(int64_t nbytes, int32_t alignment = kArrowAlignment) {   
 	return ((nbytes + alignment - 1) / alignment) * alignment; 
 }
 
@@ -53,7 +54,7 @@ static inline int64_t PaddedLength(int64_t nbytes, int32_t alignment = kArrowAli
  */
 CUDA_HOST_DEVICE_CALLABLE
 gdf_size_type get_number_of_bytes_for_valid(gdf_size_type column_size) {
-    return gdf::util::div_rounding_up_safe(column_size, GDF_VALID_BITSIZE);
+    return PaddedLength(gdf::util::div_rounding_up_safe(column_size, GDF_VALID_BITSIZE));
 }
 
 /* --------------------------------------------------------------------------*/

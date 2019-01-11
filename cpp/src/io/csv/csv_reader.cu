@@ -826,7 +826,7 @@ gdf_error allocateGdfDataSpace(gdf_column *gdf) {
 
 	long N = gdf->size;
 	// long num_bitmaps = (N + 31) / 8; WTF?? long num_bitmaps =
-	long num_bitmaps = PaddedLength(get_number_of_bytes_for_valid(N)); // 64 bytes per bitmap
+	long num_bitmaps = get_number_of_bytes_for_valid(N); // 64 bytes per bitmap
 
 
 	//--- allocate space for the valid bitmaps
