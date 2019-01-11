@@ -36,9 +36,12 @@ constexpr int32_t kTensorAlignment = 64;
 // Align on 8-byte boundaries in IPC static 
 constexpr int32_t kArrowIpcAlignment = 8;
 
+// Align on 4-byte boundaries in CUDF static 
+constexpr int32_t kCudfIpcAlignment = 4;
+
 //todo, enable arrow ipc utils, and remove this method 
 CUDA_HOST_DEVICE_CALLABLE
-static gdf_size_type PaddedLength(int64_t nbytes, int32_t alignment = kArrowAlignment) {   
+static gdf_size_type PaddedLength(int64_t nbytes, int32_t alignment = kCudfIpcAlignment) {   
 	return ((nbytes + alignment - 1) / alignment) * alignment; 
 }
 
@@ -54,7 +57,7 @@ static gdf_size_type PaddedLength(int64_t nbytes, int32_t alignment = kArrowAlig
  */
 CUDA_HOST_DEVICE_CALLABLE
 gdf_size_type get_number_of_bytes_for_valid(gdf_size_type column_size) {
-    return PaddedLength(gdf::util::div_rounding_up_safe(column_size, GDF_VALID_BITSIZE));
+    return gdf::util::div_rounding_up_safe(column_size, GDF_VALID_BITSIZE);
 }
 
 /* --------------------------------------------------------------------------*/
