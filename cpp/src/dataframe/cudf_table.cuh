@@ -1024,7 +1024,7 @@ private:
                   num_rows, input_column->size, stream);
           thrust::copy(rmm::exec_policy(stream),
                   remapped_valid_copy.begin(),
-                  remapped_valid_copy.end(), output_column->valid);
+                  remapped_valid_copy.begin() + get_number_of_bytes_for_valid(num_rows), output_column->valid);
       }
       else {
           // Ensure the output bitmask is initialized to zero
