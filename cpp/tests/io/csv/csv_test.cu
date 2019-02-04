@@ -19,12 +19,22 @@
 #include <fstream>
 #include <vector>
 #include <sys/stat.h>
+#include <memory>
 
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 
 #include <cudf.h>
 #include <NVStrings.h>
+
+#include <cudf/io_functions_cpp.h>
+
+#include <arrow/status.h>
+#include <arrow/io/interfaces.h>
+#include <arrow/io/file.h>
+
+#include "tests/utilities/cudf_test_utils.cuh"
+#include "tests/utilities/cudf_test_fixtures.h"
 
 MATCHER_P(FloatNearPointwise, tolerance, "Out of range")
 {
@@ -112,6 +122,54 @@ TEST(gdf_csv_test, Numbers)
 		EXPECT_THAT( ECol.hostdata(), ::testing::ElementsAre<float>(50000, -51111, 52222, -53333) );
 	}
 }
+
+
+std::vector<gdf_column*> ToGdfColumnCpps(gdf_column	**data, const char	**names, size_t ncols)   {
+  std::vector<gdf_column*> gdfColumnsCpps;
+  for(size_t i = 0; i < ncols; i++ ){
+    gdf_column	*column = data[i];
+
+	gdfColumnsCpps.push_back(column);
+  }
+  return gdfColumnsCpps;
+}
+
+
+
+TEST(gdf_csv_test, CsvSimpleRandomAccessFile)
+{
+
+	gdf_error error = GDF_SUCCESS;
+
+
+  	const char* fname	= "/tmp/CsvSimpleTest.csv";
+	const char* names[]	= { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J" };
+	const char* types[]	= { "int32", "int32", "int32", "int32", "int32",
+							"int32", "int32", "int32", "int32", "int32", };
+
+
+
+	std::shared_ptr<arrow::io::ReadableFile> readable_file;
+	EXPECT_TRUE(arrow::io::ReadableFile::Open(std::string("/tmp/CsvSimpleTest.csv"), &readable_file).ok());
+
+ 	ASSERT_TRUE( checkFile(fname) );
+
+	{
+		csv_read_arg args{};
+		args.filepath_or_buffer		= fname;
+		args.num_cols		= std::extent<decltype(names)>::value;
+		args.names			= names;
+		args.dtype			= types;
+		args.delimiter		= ',';
+		args.lineterminator = '\n';
+		args.nrows = -1;
+		error = read_csv_arrow(&args,readable_file);
+		EXPECT_TRUE( args.num_cols_out == 10);
+		EXPECT_EQ(args.num_rows_out, 4);
+		EXPECT_TRUE( error == GDF_SUCCESS );		
+	}
+}
+
 
 TEST(gdf_csv_test, MortPerf)
 {
