@@ -27,6 +27,7 @@
 #include "rmm/thrust_rmm_allocator.h"
 #include "utilities/error_utils.h"
 #include "utilities/cudf_utils.h"
+#include "valid_ops.h"
 
 #include <thrust/tabulate.h>
 
@@ -84,7 +85,6 @@ size_t count_valid_bits_host(std::vector<gdf_valid_type> const & masks, int cons
 
   return count;
 }
-
 
 /* --------------------------------------------------------------------------*/
 /** 
@@ -167,9 +167,13 @@ void count_valid_bits(valid32_t const * const masks32,
  * @Returns  GDF_SUCCESS upon successful completion 
  *
  * ----------------------------------------------------------------------------*/
-gdf_error gdf_count_nonzero_mask(gdf_valid_type const *masks,
-                                 gdf_size_type num_rows, gdf_size_type *count) {
-  if((nullptr == masks) || (nullptr == count)){return GDF_DATASET_EMPTY;}
+gdf_error count_nonzero_mask(gdf_valid_type const * masks,
+                                 int num_rows,
+                                 int& count,
+                                 cudaStream_t stream)
+{
+  GDF_REQUIRE(masks != nullptr, GDF_DATASET_EMPTY);
+  
   if(0 == num_rows) {return GDF_SUCCESS;}
 
   // Masks will be proccessed as 4B types, therefore we require that the underlying
@@ -185,35 +189,57 @@ gdf_error gdf_count_nonzero_mask(gdf_valid_type const *masks,
   int h_count{0};
   if(num_masks32 > 0)
   {
-    // TODO: Probably shouldn't create/destroy the stream every time
-    cudaStream_t count_stream;
-    CUDA_TRY(cudaStreamCreate(&count_stream));
-    int * d_count{nullptr};
+    int* d_count{nullptr};
 
     // Cast validity buffer to 4 byte type
-    valid32_t const * masks32{reinterpret_cast<valid32_t const *>(masks)};
+    valid32_t const* masks32{reinterpret_cast<const valid32_t*>(masks)};
 
-    RMM_TRY(RMM_ALLOC((void**)&d_count, sizeof(int), count_stream));
-    CUDA_TRY(cudaMemsetAsync(d_count, 0, sizeof(int), count_stream));
+    RMM_TRY(RMM_ALLOC((void**)&d_count, sizeof(int), stream));
+    CUDA_TRY(cudaMemsetAsync(d_count, 0, sizeof(int), stream));
 
     gdf_size_type const grid_size{(num_masks32 + block_size - 1)/block_size};
 
-    count_valid_bits<<<grid_size, block_size,0,count_stream>>>(masks32, num_masks32, num_rows, d_count);
+    count_valid_bits<<<grid_size, block_size,0,stream>>>(masks32, num_masks32, num_rows, d_count);
 
     CUDA_TRY( cudaGetLastError() );
 
-    CUDA_TRY(cudaMemcpyAsync(&h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost, count_stream));
-    RMM_TRY(RMM_FREE(d_count, count_stream));
-    CUDA_TRY(cudaStreamSynchronize(count_stream));
-    CUDA_TRY(cudaStreamDestroy(count_stream));
+    CUDA_TRY(cudaMemcpyAsync(&h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost, stream));
+    RMM_TRY(RMM_FREE(d_count, stream));
+    CUDA_TRY(cudaStreamSynchronize(stream));
   }
 
   assert(h_count >= 0);
   assert(h_count <= num_rows);
 
-  *count = h_count;
+  count = h_count;
 
   return GDF_SUCCESS;
+}
+
+/* ---------------------------------------------------------------------------*
+ * @Synopsis  Counts the number of valid bits for the specified number of rows
+ * in a validity bitmask.
+ * 
+ * @Param[in] masks The validity bitmask buffer in device memory
+ * @Param[in] num_rows The number of bits to count
+ * @Param[out] count The number of valid bits in the buffer from [0, num_rows)
+ * 
+ * @Returns  GDF_SUCCESS upon successful completion 
+ *
+ * ----------------------------------------------------------------------------*/
+gdf_error gdf_count_nonzero_mask(gdf_valid_type const * masks, int num_rows, int * count)
+{
+  gdf_error gdf_status{GDF_SUCCESS};
+  
+  // TODO: Probably shouldn't create/destroy the stream every time
+  cudaStream_t count_stream;
+  CUDA_TRY(cudaStreamCreate(&count_stream));
+  
+  gdf_status = count_nonzero_mask(masks, num_rows, *count, count_stream);
+
+  CUDA_TRY(cudaStreamDestroy(count_stream));
+
+  return gdf_status;
 }
 
 /** ---------------------------------------------------------------------------*

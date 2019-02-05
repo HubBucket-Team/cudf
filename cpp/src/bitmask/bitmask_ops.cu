@@ -4,8 +4,8 @@
 #include "cudf/functions.h"
 #include "rmm/thrust_rmm_allocator.h"
 
-#include <cuda_runtime.h>
 #include <vector>
+#include <cuda_runtime.h>
 #include <thrust/transform.h>
 #include <thrust/functional.h>
 #include <thrust/execution_policy.h>
@@ -92,4 +92,3 @@ gdf_error apply_bitmask_to_bitmask(gdf_size_type & out_null_count, gdf_valid_typ
 	delete[] last_char;
 	return GDF_SUCCESS;
 }
-

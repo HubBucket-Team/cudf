@@ -28,6 +28,7 @@
 #include <bitset>
 #include <numeric> // for std::accumulate
 #include <memory>
+#include <algorithm>
 
 #include <thrust/equal.h>
 
@@ -45,19 +46,19 @@ void print_typed_column(col_type * col_data,
   std::vector<col_type> h_data(num_rows);
   cudaMemcpy(h_data.data(), col_data, num_rows * sizeof(col_type), cudaMemcpyDeviceToHost);
 
-
   const size_t num_masks = gdf_get_num_chars_bitmask(num_rows);
   std::vector<gdf_valid_type> h_mask(num_masks);
-  if(nullptr != validity_mask)
+  bool have_valid = nullptr != validity_mask;
+  if(have_valid)
   {
     cudaMemcpy(h_mask.data(), validity_mask, num_masks * sizeof(gdf_valid_type), cudaMemcpyDeviceToHost);
   }
-
+ 
 
   for(size_t i = 0; i < num_rows; ++i)
   {
     // If the element is valid, print it's value
-    if(true == gdf_is_valid(h_mask.data(), i))
+    if(!have_valid || gdf_is_valid(h_mask.data(), i))
     {
       std::cout << h_data[i] << " ";
     }
@@ -332,7 +333,8 @@ bool gdf_equal_columns(gdf_column* left, gdf_column* right)
   if (left->null_count != right->null_count) return false;
   if (left->dtype_info.time_unit != right->dtype_info.time_unit) return false;
   
-  if (!(left->data && right->data)) return false; // if one is null but not both
+  if ((left->data == nullptr &&  right->data != nullptr) ||
+        (left->data != nullptr &&  right->data == nullptr)) return false; // if one is null but not both
   
   if (!thrust::equal(thrust::cuda::par, 
                      reinterpret_cast<T*>(left->data), 
@@ -340,13 +342,16 @@ bool gdf_equal_columns(gdf_column* left, gdf_column* right)
                      reinterpret_cast<T*>(right->data)) ) 
     return false;
   
-  if (!(left->valid && right->valid)) return false; // if one is null but not both
+  if ((left->valid == nullptr &&  right->valid != nullptr) ||
+        (left->valid != nullptr &&  right->valid == nullptr)) return false; // if one is null but not both
   
-  if (!thrust::equal(thrust::cuda::par, 
-                     left->valid, 
-                     left->valid + gdf_get_num_chars_bitmask(left->size), 
-                     right->valid))
-    return false;
+  if (left->valid != nullptr && right->valid != nullptr){
+    if (!thrust::equal(thrust::cuda::par, 
+                      left->valid, 
+                      left->valid + gdf_get_num_chars_bitmask(left->size), 
+                      right->valid))
+      return false;
+  }
   
   return true;
 }
