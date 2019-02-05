@@ -369,7 +369,7 @@ gdf_error gdf_group_start_indices(int num_data_cols,
   bool nulls_are_smallest = ctxt->flag_nulls_sort_behavior == 1;
 
   int32_t* result_end;
-  auto exec = rmm::exec_policy();
+  auto exec = rmm::exec_policy()->on(0);
   if (have_nulls){
 
     Vector<gdf_valid_type*> d_valids(num_groupby_cols);

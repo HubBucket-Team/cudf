@@ -914,7 +914,7 @@ void multi_col_sort(void* const *           d_cols,
                       return comp.less_with_nulls_always_false(i1, i2);
                   });
     } else {
-      thrust::sort(rmm::exec_policy(stream),
+      thrust::sort(rmm::exec_policy(stream)->on(stream),
                   d_indx, d_indx+nrows,
                   [comp] __device__ (IndexT i1, IndexT i2){
                       return comp.asc_desc_comparison_with_nulls(i1, i2);
