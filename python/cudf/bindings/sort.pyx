@@ -41,8 +41,9 @@ cpdef apply_order_by(in_cols, out_indices, ascending=True, na_position=1):
     check_gdf_compatibility(out_indices)
     cdef gdf_column* output_indices = column_view_from_column(out_indices)
 
-    cdef int flag_nulls_are_smallest = na_position
-
+    cdef gdf_context ctxt
+    ctxt.flag_nulls_sort_behavior = na_position
+    
     cdef gdf_error result 
     
     with nogil:
@@ -50,6 +51,6 @@ cpdef apply_order_by(in_cols, out_indices, ascending=True, na_position=1):
                               <int8_t*> asc_desc,
                               <size_t> num_inputs,
                               <gdf_column*> output_indices,
-                              <int> flag_nulls_are_smallest)
+                              <gdf_context*> &ctxt)
     
     check_gdf_error(result)
