@@ -142,12 +142,14 @@ void print_gdf_column(gdf_column const *column, unsigned min_element_print_width
  * @brief prints validity data from either a host or device pointer
  * 
  * @param validity_mask The validity bitmask to print
- * @param length Length of the mask in bits
+ * @param size_in_elements The length of the column (not the bitmask) in elements
  *
  * @note the mask may have more space allocated for it than is necessary 
  * for the specified length; in particular, it will have "slack" bits
- * in the last byte, if length % 8 != 0. Such slack bits are ignored and
- * not printed. Usually, length is the number of elements of a gdf_column.
+ * in the last gdf_valid_type, if length % CHAR_BITS * sizeof(gdf_valid_type) != 0.
+ * Such slack bits currently printed (!). Usually, length is the number
+ * of elements of a gdf_column.
+ *
  * ---------------------------------------------------------------------------**/
 void print_valid_data(const gdf_valid_type *validity_mask, 
                       const size_t length);

@@ -19,6 +19,31 @@
 #include <vector>
 #include <tuple>
 
+
+using stencil_functor_initializer = typename std::function<void(size_t, std::vector<gdf_bool>& v )>;
+void initialize_stencil_values(std::vector<gdf_bool>& v, const size_t length,
+        stencil_functor_initializer f);
+
+// host_valid_pointer is a wrapper for gdf_valid_type* with custom deleter
+using host_valid_pointer = typename std::unique_ptr<gdf_valid_type, std::function<void(gdf_valid_type*)>>;
+using valids_functor_initializer = typename std::function<void(size_t, size_t, gdf_valid_type* const )>;
+
+// Initialize valids and init randomly the last half column
+void initialize_valids(host_valid_pointer& valid_ptr, size_t length, valids_functor_initializer f);
+
+inline void initialize_valids(gdf_valid_type* valid_bits, size_t length, valids_functor_initializer f)
+{
+    for (size_t i = 0; i < length; ++i) {
+        f(i, length, valid_bits);
+    }
+}
+
+// Type for a unique_ptr to a gdf_column with a custom deleter
+// Custom deleter is defined at construction
+using gdf_col_pointer =
+    typename std::unique_ptr<gdf_column, std::function<void(gdf_column*)>>;
+
+
 inline auto get_number_of_bytes_for_valid (size_t column_size) -> size_t {
     return sizeof(gdf_valid_type) * (column_size + GDF_VALID_BITSIZE - 1) / GDF_VALID_BITSIZE;
 }
@@ -174,7 +199,7 @@ void check_column_for_stencil_operation(gdf_column *column, gdf_column *stencil,
     //EXPECT_EQ(host_column.dtype == host_output_op.dtype);  // it must have the same type
 
     
-    int  n_bytes =  sizeof(int8_t) * (column->size + GDF_VALID_BITSIZE - 1) / GDF_VALID_BITSIZE;
+    int  n_bytes =  sizeof(gdf_bool) * (column->size + GDF_VALID_BITSIZE - 1) / GDF_VALID_BITSIZE;
     std::vector<int> indexes;
     for(gdf_size_type i = 0; i < host_stencil.size; i++) {
         int col_position =  i / 8;

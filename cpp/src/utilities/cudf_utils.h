@@ -7,6 +7,7 @@
 #include <cuda_runtime_api.h>
 
 #include <vector>
+#include <cassert>
 
 #ifdef __CUDACC__
 #define CUDA_HOST_DEVICE_CALLABLE __host__ __device__ inline
@@ -19,16 +20,39 @@
 #endif
 
 inline gdf_error set_null_count(gdf_column* col) {
-  gdf_size_type valid_count{};
-  gdf_error result =
+    assert(col != nullptr);
+    if (col->valid == nullptr) {
+        col->null_count = 0;
+        return GDF_SUCCESS;
+    }
+    gdf_size_type valid_count{};
+    gdf_error result =
       gdf_count_nonzero_mask(col->valid, col->size, &valid_count);
 
-  GDF_REQUIRE(GDF_SUCCESS == result, result);
+    GDF_REQUIRE(GDF_SUCCESS == result, result);
 
-  col->null_count = col->size - valid_count;
+    col->null_count = col->size - valid_count;
 
-  return GDF_SUCCESS;
+    return GDF_SUCCESS;
 }
+
+/*
+
+// TODO: Use is_bit_set() from bit_util.cuh
+CUDA_HOST_DEVICE_CALLABLE 
+bool gdf_is_valid(const gdf_valid_type *valid, gdf_index_type pos) {
+	if ( valid )
+		return (valid[pos / GDF_VALID_BITSIZE] >> (pos % GDF_VALID_BITSIZE)) & 1;
+	else
+		return true;
+}
+
+// TODO: Use cudf::util::div_rounding_up_safe (or the power-of-2 variant)
+CUDA_HOST_DEVICE_CALLABLE
+gdf_size_type gdf_get_num_chars_bitmask(gdf_size_type size) { 
+	return (( size + ( GDF_VALID_BITSIZE - 1)) / GDF_VALID_BITSIZE );
+}
+*/
 
 /* --------------------------------------------------------------------------*/
 /** 
