@@ -24,6 +24,7 @@
 #include <cudf/functions.h>
 #include <utilities/cudf_utils.h>
 #include <utilities/bit_util.cuh>
+#include <utilities/miscellany.hpp>
 
 #include <bitset>
 #include <numeric> // for std::accumulate
@@ -36,95 +37,135 @@
 using gdf_col_pointer = typename std::unique_ptr<gdf_column, 
                                                  std::function<void(gdf_column*)>>;
 
+// We use this single character to represent a gdf_column element being null
+constexpr const char null_representative = '@';
+
 template <typename col_type>
-void print_typed_column(col_type * col_data, 
-                        gdf_valid_type * validity_mask, 
-                        const size_t num_rows)
+void print_typed_column(
+    const col_type * __restrict__ col_data,
+    gdf_valid_type * __restrict__  validity_mask,
+    const size_t num_rows,
+    unsigned min_printing_width = 1)
 {
-
+  static_assert(not std::is_same<col_type, void>::value, "Can't print void* columns - a concrete type is needed");
+  if (col_data == nullptr) {
+      std::cout << "(nullptr column data pointer - nothing to print)";
+      return;
+  }
+  if (num_rows == 0) {
+      std::cout << "(empty column)";
+      return;
+  }
   std::vector<col_type> h_data(num_rows);
-  cudaMemcpy(h_data.data(), col_data, num_rows * sizeof(col_type), cudaMemcpyDeviceToHost);
 
+  cudaMemcpy(h_data.data(), col_data, num_rows * sizeof(col_type), cudaMemcpyDefault);
 
-  const size_t num_masks = gdf_get_num_chars_bitmask(num_rows);
-  std::vector<gdf_valid_type> h_mask(num_masks);
+  const size_t num_valid_type_elements = gdf_get_num_chars_bitmask(num_rows);
+  std::vector<gdf_valid_type> h_mask(num_valid_type_elements );
   if(nullptr != validity_mask)
   {
-    cudaMemcpy(h_mask.data(), validity_mask, num_masks * sizeof(gdf_valid_type), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_mask.data(), validity_mask, num_valid_type_elements, cudaMemcpyDefault);
   }
-
 
   for(size_t i = 0; i < num_rows; ++i)
   {
-    // If the element is valid, print it's value
-    if(true == gdf_is_valid(h_mask.data(), i))
-    {
-      std::cout << h_data[i] << " ";
-    }
-    // Otherwise, print an @ to represent a null value
-    else
-    {
-      std::cout << "@" << " ";
-    }
+      std::cout << std::setw(min_printing_width);
+      if ((validity_mask == nullptr) or gdf_is_valid(h_mask.data(), i))
+      {
+          if (sizeof(col_type) < sizeof(int)) {
+              std::cout << (int) h_data[i];
+          }
+          else {
+              std::cout << h_data[i];
+          }
+      }
+      else {
+          std::cout << null_representative;
+      }
+      if (i + 1 < num_rows) { std::cout << ' '; }
   }
   std::cout << std::endl;
 }
 
-void print_gdf_column(gdf_column const * the_column)
+template <typename col_type>
+inline void print_typed_column(const gdf_column& column, unsigned min_printing_width = 1)
 {
-  const size_t num_rows = the_column->size;
+    print_typed_column<col_type>(
+        static_cast<const col_type*>(column.data),
+        column.valid,
+        column.size,
+        min_printing_width);
+}
 
-  const gdf_dtype gdf_col_type = the_column->dtype;
-  switch(gdf_col_type)
+
+// TODO: Use the type dispatcher - we're almost there
+void print_gdf_column(gdf_column const *column, unsigned min_printing_width = 1)
+{
+  switch(column->dtype)
   {
-    case GDF_INT8:
-      {
-        using col_type = int8_t;
-        col_type * col_data = static_cast<col_type*>(the_column->data);
-        print_typed_column<col_type>(col_data, the_column->valid, num_rows);
-        break;
-      }
-    case GDF_INT16:
-      {
-        using col_type = int16_t;
-        col_type * col_data = static_cast<col_type*>(the_column->data);
-        print_typed_column<col_type>(col_data, the_column->valid, num_rows);
-        break;
-      }
-    case GDF_INT32:
-      {
-        using col_type = int32_t;
-        col_type * col_data = static_cast<col_type*>(the_column->data);
-        print_typed_column<col_type>(col_data, the_column->valid, num_rows);
-        break;
-      }
-    case GDF_INT64:
-      {
-        using col_type = int64_t;
-        col_type * col_data = static_cast<col_type*>(the_column->data);
-        print_typed_column<col_type>(col_data, the_column->valid, num_rows);
-        break;
-      }
-    case GDF_FLOAT32:
-      {
-        using col_type = float;
-        col_type * col_data = static_cast<col_type*>(the_column->data);
-        print_typed_column<col_type>(col_data, the_column->valid, num_rows);
-        break;
-      }
-    case GDF_FLOAT64:
-      {
-        using col_type = double;
-        col_type * col_data = static_cast<col_type*>(the_column->data);
-        print_typed_column<col_type>(col_data, the_column->valid, num_rows);
-        break;
-      }
+    case GDF_INT8:    print_typed_column<int8_t  >(*column, min_printing_width); break;
+    case GDF_INT16:   print_typed_column<int16_t >(*column, min_printing_width); break;
+    case GDF_INT32:   print_typed_column<int32_t >(*column, min_printing_width); break;
+    case GDF_INT64:   print_typed_column<int64_t >(*column, min_printing_width); break;
+    case GDF_FLOAT32: print_typed_column<float   >(*column, min_printing_width); break;
+    case GDF_FLOAT64: print_typed_column<double  >(*column, min_printing_width); break;
     default:
       {
         std::cout << "Attempted to print unsupported type.\n";
       }
   }
 }
+
+template <typename BitContainer>
+void print_bit_column(
+    const BitContainer* __restrict__ bits,
+    gdf_size_type                    num_bits,
+    unsigned                         min_column_width = 1)
+{
+    auto num_containers = cudf::util::div_rounding_up_safe<gdf_size_type>(num_bits, sizeof(BitContainer) * CHAR_BIT);
+    std::vector<BitContainer> h_validity(num_containers);
+    cudaMemcpy(h_validity.data(), bits, num_containers * sizeof(BitContainer), cudaMemcpyDefault);
+
+    for(gdf_size_type i = 0; i < num_bits; ++i) {
+        char out_character =
+            gdf::util::bit_is_set<BitContainer, gdf_size_type>(h_validity.data(), i) ? '+' : '-';
+        std::cout << std::setw(min_column_width) << out_character << ' ';
+    }
+    std::cout << std::endl;
+}
+
+
+void print_stencil(
+    const gdf_column&  stencil,
+    unsigned           min_column_width = 1)
+{
+    std::vector<gdf_bool> h_stencil_data(stencil.size);
+    cudaMemcpy(h_stencil_data.data(), stencil.data, stencil.size * sizeof(gdf_bool), cudaMemcpyDeviceToHost);
+    std::vector<gdf_valid_type> h_validity;
+    if (cudf::is_nullable(stencil)) {
+        auto validity_size = cudf::util::div_rounding_up_safe<gdf_size_type>(stencil.size, CHAR_BIT);
+        h_validity.resize(validity_size);
+        cudaMemcpy(h_validity.data(), stencil.valid, validity_size, cudaMemcpyDeviceToHost);
+    }
+
+    for(gdf_size_type i = 0; i < stencil.size; ++i) {
+        char out_character;
+        if(not cudf::is_nullable(stencil) or
+           gdf::util::bit_is_set<gdf_valid_type, gdf_size_type>(h_validity.data(), i))
+        {
+            switch (h_stencil_data[i]) {
+            case 0: out_character = '-'; break;
+            case 1: out_character = '+'; break;
+            default: out_character = '?';
+            }
+        }
+        else out_character = null_representative;
+        std::cout << std::setw(min_column_width) << out_character << ' ';
+    }
+    std::cout << std::endl;
+}
+
+
 
 /** ---------------------------------------------------------------------------*
  * @brief prints validity data from either a host or device pointer
@@ -149,7 +190,7 @@ void print_valid_data(const gdf_valid_type *validity_mask,
 
   std::transform(h_mask.begin(), h_mask.end(), std::ostream_iterator<std::string>(std::cout, " "), 
                  [](gdf_valid_type x){ 
-                   auto bits = std::bitset<GDF_VALID_BITSIZE>(x).to_string('@'); 
+                   auto bits = std::bitset<GDF_VALID_BITSIZE>(x).to_string(null_representative);
                    return std::string(bits.rbegin(), bits.rend());  
                  });
   std::cout << std::endl;

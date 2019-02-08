@@ -17,6 +17,7 @@
 #endif
 
 
+// TODO: Use is_bit_set() from bit_util.cuh
 CUDA_HOST_DEVICE_CALLABLE 
 bool gdf_is_valid(const gdf_valid_type *valid, gdf_index_type pos) {
 	if ( valid )
@@ -25,9 +26,10 @@ bool gdf_is_valid(const gdf_valid_type *valid, gdf_index_type pos) {
 		return true;
 }
 
+// TODO: Use cudf::util::div_rounding_up_safe (or the power-of-2 variant)
 CUDA_HOST_DEVICE_CALLABLE
 gdf_size_type gdf_get_num_chars_bitmask(gdf_size_type size) { 
-	return (( size + ( GDF_VALID_BITSIZE - 1)) / GDF_VALID_BITSIZE ); 
+	return (( size + ( GDF_VALID_BITSIZE - 1)) / GDF_VALID_BITSIZE );
 }
 
 /* --------------------------------------------------------------------------*/
