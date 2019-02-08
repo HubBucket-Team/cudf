@@ -2,18 +2,22 @@
 #ifndef GDF_TEST_UTILS
 #define GDF_TEST_UTILS
 
-#include <iostream>
 #include <cudf.h>
 #include <cudf/functions.h>
+
 #include <thrust/functional.h>
 #include <thrust/device_ptr.h>
 #include <thrust/iterator/counting_iterator.h>
 
+#include <rmm/rmm.h>
+
+#include <iostream>
+#include <functional>
 #include <string>
 #include <functional>
 #include <vector>
 #include <tuple>
-#include <rmm/rmm.h>
+#include <random>
 
 template <typename gdf_type>
 inline gdf_dtype gdf_enum_type_for()
@@ -211,7 +215,7 @@ void check_column_for_stencil_operation(gdf_column *column, gdf_column *stencil,
     //EXPECT_EQ(host_column.dtype == host_output_op.dtype);  // it must have the same type
 
     
-    int  n_bytes =  sizeof(int8_t) * (column->size + GDF_VALID_BITSIZE - 1) / GDF_VALID_BITSIZE;
+    int  n_bytes =  sizeof(gdf_bool) * (column->size + GDF_VALID_BITSIZE - 1) / GDF_VALID_BITSIZE;
     std::vector<int> indexes;
     for(gdf_size_type i = 0; i < host_stencil.size; i++) {
         int col_position =  i / 8;
@@ -317,5 +321,141 @@ void check_column_for_concat_operation(gdf_column *lhs, gdf_column *rhs, gdf_col
     
 }
 
+//Struct to generate random values of type T
+template <typename K>
+struct RandomValues {
+    //Depending upon the type T, select
+    //real or integer distribution
+    using Distribution = typename
+    std::conditional<
+    std::is_integral<K>::value,
+    typename std::uniform_int_distribution<K>,
+    typename std::uniform_real_distribution<K>>::type;
+
+    //Minimum value of the distribution
+    K min;
+
+    //Maximum value of the distribution
+    K max;
+
+    //Random device
+    mutable std::random_device rd;
+
+    //Mersenne Twister generator
+    mutable std::mt19937 gen;
+
+    //Object of selected distribution type
+    mutable Distribution dis;
+
+    //Constructor to set minimum and maximum values of the distribution
+    RandomValues(const K _min, const K _max) :
+        min(_min), max(_max), gen(rd()), dis(min, max) {}
+
+    //Constructor to set minimum and maximum values of the distribution
+    RandomValues(const K _min, const K _max, size_t seed) :
+        min(_min), max(_max), gen(seed), dis(min, max) {}
+
+    //Operator to generate random value (const variant)
+    K operator()(void) const { return dis(gen); }
+
+    //Operator to generate random value
+    K operator()(void) { return dis(gen); }
+};
+
+// Initialize a value vector with random data
+template <typename V>
+void initialize_values(std::vector<V>& v, const size_t length, 
+        const size_t column_range) {
+    v.reserve(length);
+    for (size_t i = 0; i < length; ++i) {
+        v.push_back(std::rand()%column_range);
+    }
+}
+
+using stencil_functor_initializer = typename std::function<void(size_t, std::vector<gdf_bool>& v )>;
+void initialize_stencil_values(std::vector<gdf_bool>& v, const size_t length,
+        stencil_functor_initializer f);
+
+// host_valid_pointer is a wrapper for gdf_valid_type* with custom deleter
+using host_valid_pointer = typename std::unique_ptr<gdf_valid_type, std::function<void(gdf_valid_type*)>>;
+using valids_functor_initializer = typename std::function<void(size_t, size_t, gdf_valid_type* const )>;
+
+// Initialize valids and init randomly the last half column
+void initialize_valids(host_valid_pointer& valid_ptr, size_t length, valids_functor_initializer f);
+
+inline void initialize_valids(gdf_valid_type* valid_bits, size_t length, valids_functor_initializer f)
+{
+    for (size_t i = 0; i < length; ++i) {
+        f(i, length, valid_bits);
+    }
+}
+
+// Type for a unique_ptr to a gdf_column with a custom deleter
+// Custom deleter is defined at construction
+using gdf_col_pointer = 
+    typename std::unique_ptr<gdf_column, std::function<void(gdf_column*)>>;
+
+/* --------------------------------------------------------------------------*
+* @Synopsis Creates a unique_ptr that wraps a gdf_column structure 
+*           intialized with a host vector
+*
+* @Param host_vector vector containing data to be transfered to device side column
+* @Param host_valid  vector containing valid masks associated with the supplied vector
+* @Param n_count     null_count to be set for the generated column
+*
+* @Returns A unique_ptr wrapping the new gdf_column
+* --------------------------------------------------------------------------*/
+template <typename col_type>
+gdf_col_pointer create_gdf_column(std::vector<col_type> const & host_vector, host_valid_pointer & host_valid) {
+    // Deduce the type and set the gdf_dtype accordingly
+    gdf_dtype gdf_col_type;
+    if(std::is_same<col_type,int8_t>::value) gdf_col_type = GDF_INT8;
+    else if(std::is_same<col_type,uint8_t>::value) gdf_col_type = GDF_INT8;
+    else if(std::is_same<col_type,int16_t>::value) gdf_col_type = GDF_INT16;
+    else if(std::is_same<col_type,uint16_t>::value) gdf_col_type = GDF_INT16;
+    else if(std::is_same<col_type,int32_t>::value) gdf_col_type = GDF_INT32;
+    else if(std::is_same<col_type,uint32_t>::value) gdf_col_type = GDF_INT32;
+    else if(std::is_same<col_type,int64_t>::value) gdf_col_type = GDF_INT64;
+    else if(std::is_same<col_type,uint64_t>::value) gdf_col_type = GDF_INT64;
+    else if(std::is_same<col_type,float>::value) gdf_col_type = GDF_FLOAT32;
+    else if(std::is_same<col_type,double>::value) gdf_col_type = GDF_FLOAT64;
+
+    // Create a new instance of a gdf_column with a custom deleter that will
+    //  free the associated device memory when it eventually goes out of scope
+    auto deleter = [](gdf_column* col) {
+        col->size = 0; 
+        RMM_FREE(col->data, 0); 
+        RMM_FREE(col->valid, 0); 
+    };
+    gdf_col_pointer the_column{new gdf_column, deleter};
+
+    // Allocate device storage for gdf_column and copy contents from host_vector
+    EXPECT_EQ(RMM_ALLOC(&(the_column->data), host_vector.size() * sizeof(col_type), 0), RMM_SUCCESS);
+    EXPECT_EQ(cudaMemcpy(the_column->data, host_vector.data(), host_vector.size() * sizeof(col_type), cudaMemcpyHostToDevice), cudaSuccess);
+
+    // Allocate device storage for gdf_column.valid
+    if (host_valid != nullptr) {
+        int valid_size = get_number_of_bytes_for_valid(host_vector.size());
+        EXPECT_EQ(RMM_ALLOC((void**)&(the_column->valid), valid_size, 0), RMM_SUCCESS);
+        EXPECT_EQ(off_t(the_column->valid) % sizeof(uint32_t), 0u);
+            // Even though gdf_valid_type is uint8_t for now, some code treats valid pseudocolumns as
+            // sequences of 32-bit values.
+        EXPECT_EQ(cudaMemcpy(the_column->valid, host_valid.get(), valid_size, cudaMemcpyHostToDevice), cudaSuccess);
+
+        the_column->null_count = count_zero_bits(host_valid.get(), host_vector.size());
+    } else {
+        the_column->valid = nullptr;
+        the_column->null_count = 0;
+    }
+
+    // Fill the gdf_column members
+    the_column->size = host_vector.size();
+    the_column->dtype = gdf_col_type;
+    gdf_dtype_extra_info extra_info;
+    extra_info.time_unit = TIME_UNIT_NONE;
+    the_column->dtype_info = extra_info;
+
+    return the_column;
+}
 
 #endif // GDF_TEST_UTILS
