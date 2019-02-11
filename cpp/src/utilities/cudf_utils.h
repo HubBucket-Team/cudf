@@ -17,6 +17,7 @@
 #endif
 
 
+// TODO: Use is_bit_set() from bit_util.cuh
 CUDA_HOST_DEVICE_CALLABLE 
 bool gdf_is_valid(const gdf_valid_type *valid, gdf_index_type pos) {
 	if ( valid )
@@ -24,7 +25,6 @@ bool gdf_is_valid(const gdf_valid_type *valid, gdf_index_type pos) {
 	else
 		return true;
 }
-
 
 CUDA_HOST_DEVICE_CALLABLE
 gdf_size_type gdf_get_num_chars_bitmask(gdf_size_type column_size) { 

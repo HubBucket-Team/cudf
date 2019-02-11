@@ -264,8 +264,7 @@ def test_csv_reader_usecols_int_char(tmpdir):
     df_out = pd.read_csv(fname, usecols=[0, 1, 3], parse_dates=[1],
                          dayfirst=True)
     out = read_csv(str(fname), usecols=[0, 1, 3], dayfirst=True)
-    print(df_out)
-    print(out)
+
     assert len(out.columns) == len(df_out.columns)
     assert len(out) == len(df_out)
     pd.util.testing.assert_frame_equal(df_out, out.to_pandas(),
@@ -326,17 +325,38 @@ def test_csv_reader_float_decimal(tmpdir):
 def test_csv_reader_NaN_values():
 
     names = dtypes = ['float32']
-    buffer = '476940.0\n59e3\n\n""\n305245.0\n'
+    empty_cells = '\n""\n"  "\n " " \n'
+    default_na_cells = ('#N/A\n#N/A N/A\n#NA\n-1.#IND\n'
+                        '-1.#QNAN\n-NaN\n-nan\n1.#IND\n'
+                        '1.#QNAN\nN/A\nNA\nNULL\n'
+                        'NaN\nn/a\nnan\nnull\n')
+    custom_na_cells = 'NV_NAN\nNotANumber\n'
+    all_cells = empty_cells + default_na_cells + custom_na_cells
+    custom_na_values = ['NV_NAN', 'NotANumber']
 
-    cu_df = read_csv(StringIO(buffer), names=names, dtype=dtypes)
-    pd_df = pd.read_csv(StringIO(buffer), names=names, dtype=dtypes[0],
-                        skip_blank_lines=False)
+    # test default NA values. emply cells should also yield NaNs
+    all_nan = read_csv(StringIO(default_na_cells + empty_cells),
+                       names=names, dtype=dtypes)
+    assert(all(np.isnan(all_nan.to_pandas()['float32'])))
 
-    cu_df = cu_df.to_pandas()
+    # no NA values: defaults are off, no custom values passed in
+    # only NaNs should be empty cells
+    none_nan = read_csv(StringIO(default_na_cells),
+                        names=names, dtype=dtypes,
+                        keep_default_na=False)
+    assert(not any(np.isnan(none_nan.to_pandas()['float32'])))
 
-    assert len(pd_df.columns) == len(cu_df.columns)
-    assert len(pd_df) == len(cu_df)
-    pd.util.testing.assert_frame_equal(pd_df, cu_df)
+    # na_filter off - only NaNs should be empty cells
+    none_nan = read_csv(StringIO(default_na_cells + custom_na_cells),
+                        names=names, dtype=dtypes,
+                        na_filter=False, na_values=custom_na_values)
+    assert(not any(np.isnan(none_nan.to_pandas()['float32'])))
+
+    # custom NA values
+    all_nan = read_csv(StringIO(all_cells),
+                       names=names, dtype=dtypes,
+                       na_values=custom_na_values)
+    assert(all(np.isnan(all_nan.to_pandas()['float32'])))
 
 
 def test_csv_reader_thousands(tmpdir):
@@ -650,6 +670,37 @@ def test_csv_reader_empty_dataframe():
         read_csv(StringIO(buffer))
 
 
+def test_csv_reader_filenotfound(tmpdir):
+    fname = "non-existing-filename.csv"
+
+    # should raise an error
+    with pytest.raises(FileNotFoundError):
+        read_csv(str(fname))
+
+    # should raise an error
+    dname = tmpdir.mkdir("gdf_csv")
+    with pytest.raises(FileNotFoundError):
+        read_csv(str(dname))
+
+
+def test_csv_reader_carriage_return(tmpdir):
+
+    fname = tmpdir.mkdir("gdf_csv").join("tmp_csvreader_file16.csv")
+
+    rows = 1000
+
+    with open(str(fname), 'w') as fp:
+        for i in range(rows):
+            fp.write(str(i) + ', ' + str(2*i) + '\r\n')
+
+    df = read_csv(str(fname), names=["int1", "int2"])
+
+    assert(len(df) == rows)
+    for row in range(0, rows):
+        assert(df['int1'][row] == row)
+        assert(df['int2'][row] == 2 * row)
+
+
 def test_csv_reader_bzip2_compression(tmpdir):
     fname = tmpdir.mkdir("gdf_csv").join('tmp_csvreader_file16.csv.bz2')
 
@@ -666,11 +717,36 @@ def test_csv_reader_bzip2_compression(tmpdir):
     pd.util.testing.assert_frame_equal(df_out, out.to_pandas())
 
 
+def test_csv_reader_tabs():
+    names = ['float_point', 'integer', 'date']
+    lines = [','.join(names),
+             '1.2,\t12,     \t11/22/1995',
+             '3.4\t,\t34\t,\t 01/01/2001',
+             '\t 5.6,56 \t, 12/12/1970',
+             '\t7.8 , 78\t,06/15/2018 \t']
+    buffer = '\n'.join(lines) + '\n'
+
+    df = read_csv(StringIO(buffer))
+
+    assert(df.shape == (4, 3))
+
+    floats = [1.2, 3.4, 5.6, 7.8]
+    ints = [12, 34, 56, 78]
+    dates = ['1995-11-22T00:00:00.000',
+             '2001-01-01T00:00:00.000',
+             '1970-12-12T00:00:00.000',
+             '2018-06-15T00:00:00.000']
+    np.testing.assert_allclose(floats, df['float_point'])
+    np.testing.assert_allclose(ints, df['integer'])
+    for row in range(4):
+        assert(str(df['date'][row]) == dates[row])
+
+
 @pytest.mark.parametrize('segment_bytes', [10000, 19999, 30001, 36000])
 def test_csv_reader_byte_range(tmpdir, segment_bytes):
     fname = tmpdir.mkdir("gdf_csv").join("tmp_csvreader_file16.csv")
 
-    names = ["int1", "int2"]
+    names = ['int1', 'int2']
 
     rows = 10000
     with open(str(fname), 'w') as fp:
@@ -688,3 +764,42 @@ def test_csv_reader_byte_range(tmpdir, segment_bytes):
 
     # comparing only the values here, concat does not update the index
     np.array_equal(ref_df.to_pandas().values, df.to_pandas().values)
+
+
+@pytest.mark.parametrize('header_row, skip_rows, skip_blanks',
+                         [(1, 0, True), ('infer', 2, True), (1, 4, True),
+                          (3, 0, False), ('infer', 5, False)])
+def test_csv_reader_blanks_and_comments(skip_rows, header_row, skip_blanks):
+
+    lines = ['# first comment line',
+             '\n',
+             '# third comment line',
+             '1,2,3',
+             '4,5,6',
+             '7,8,9',
+             '\n',
+             '# last comment line'
+             '\n',
+             '1,1,1']
+    buffer = '\n'.join(lines) + '\n'
+
+    cu_df = read_csv(StringIO(buffer), comment='#', header=header_row,
+                     skiprows=skip_rows, skip_blank_lines=skip_blanks)
+    pd_df = pd.read_csv(StringIO(buffer), comment='#', header=header_row,
+                        skiprows=skip_rows, skip_blank_lines=skip_blanks)
+
+    assert(cu_df.shape == pd_df.shape)
+    assert(list(cu_df.columns.values) == list(pd_df.columns.values))
+
+
+def test_csv_reader_prefix(tmpdir):
+
+    lines = ['1, 1, 1, 1']
+    buffer = '\n'.join(lines) + '\n'
+
+    prefix_str = 'a_prefix'
+    df = read_csv(StringIO(buffer), header=None, prefix=prefix_str)
+
+    column_names = list(df.columns.values)
+    for col in range(len(column_names)):
+        assert(column_names[col] == prefix_str + str(col))

@@ -89,7 +89,7 @@ namespace cudf{
 template < class functor_t, 
            typename... Ts>
 CUDA_HOST_DEVICE_CALLABLE
-decltype(auto) type_dispatcher(gdf_dtype dtype, 
+constexpr auto type_dispatcher(gdf_dtype dtype,
                                functor_t f, 
                                Ts&&... args)
 {

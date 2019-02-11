@@ -2,21 +2,51 @@
 
 ## New Features
 
+- PR #760 Raise `FileNotFoundError` instead of `GDF_FILE_ERROR` in `read_csv` if the file does not exist
 - PR #539 Add Python bindings for replace function
 - PR #807 CSV Reader: Add byte_range parameter to specify the range in the input file to be read
+- PR #858 Add series feature hashing support
+- PR #871 CSV Reader: Add support for NA values, including user specified strings
+- PR #867 CSV Reader: Add support for ignoring blank lines and comment lines
+- PR #895 Add Series groupby
+- PR #898 Add DataFrame.groupby(level=0) support
+- PR #888 CSV Reader: Add prefix parameter for column names, used when parsing without a header
+- PR #902 Improved performance for `gpu_apply_stencil`
 - PR #636 add the ability csv to use arrow::io::RandomAccessFile as an input
 
 ## Improvements
 
 - PR #730 Improve performance of `gdf_table` constructor
+- PR #822 Add support for `__cuda_array_interface__` for ingest
+- PR #756 Consolidate common helper functions from unordered map and multimap
+- PR #753 Improve performance of groupby sum and average, especially for cases with few groups.
+- PR #836 Add ingest support for arrow chunked arrays in Column, Series, DataFrame creation
+- PR #763 Format doxygen comments for csv_read_arg struct
 - PR #532 CSV Reader: Use type dispatcher instead of switch block
+- PR #878 Add better indexing to Groupby
+- PR #554 Add `empty` method and `is_monotonic` attribute to `Index`
 
 ## Bug Fixes
 
 - PR #821 Fix flake8 issues revealed by flake8 update
 - PR #808 Resolved renamed `d_columns_valids` variable name
+- PR #820 SCV Reader: fix the issue where reader adds additional rows when file uses \r\n as a line terminator
 - PR #780 CSV Reader: Fix scientific notation parsing and null values for empty quotes
+- PR #815 CSV Reader: Fix data parsing when tabs are present in the input CSV file
 - PR #850 Fix bug where left joins where the left df has 0 rows causes a crash
+- PR #861 Fix memory leak by preserving the boolean mask index
+- PR #875 Handle unnamed indexes in to/from arrow functions
+- PR #877 Fix ingest of 1 row arrow tables in from arrow function
+- PR #876 Added missing `<type_traits>` include
+- PR #889 Deleted test_rmm.py which has now moved to RMM repo
+- PR #866 Merge v0.5.1 numpy ABI hotfix into 0.6
+
+
+# cuDF 0.5.1 (05 Feb 2019)
+
+## Bug Fixes
+
+- PR #842 Avoid using numpy via cimport to prevent ABI issues in Cython compilation
 
 
 # cuDF 0.5.0 (28 Jan 2019)

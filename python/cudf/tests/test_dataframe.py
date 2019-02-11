@@ -1298,6 +1298,24 @@ def test_binops(pdf, gdf, left, right, binop):
     assert_eq(d, g)
 
 
+@pytest.mark.parametrize('func', [
+    lambda df: df.empty,
+    lambda df: df.x.empty,
+])
+def test_unary_operators(func, pdf, gdf):
+    p = func(pdf)
+    g = func(gdf)
+    assert_eq(p, g)
+
+
+def test_is_monotonic(gdf):
+    pdf = pd.DataFrame({'x': [1, 2, 3]}, index=[3, 1, 2])
+    gdf = gd.DataFrame.from_pandas(pdf)
+    assert not gdf.index.is_monotonic
+    assert not gdf.index.is_monotonic_increasing
+    assert not gdf.index.is_monotonic_decreasing
+
+
 def test_dataframe_replace():
     # numerical
     pdf1 = pd.DataFrame({'a': [0, 1, 2, 3], 'b': [0, 1, 2, 3]})
@@ -1435,3 +1453,129 @@ def test_arrow_pandas_compat(pdf, gdf, preserve_index):
     pdf2 = pdf_arrow_table.to_pandas()
 
     assert_eq(pdf2, gdf2)
+
+
+@pytest.mark.parametrize('nrows', [1, 8, 100, 1000])
+def test_series_hash_encode(nrows):
+    data = np.asarray(range(nrows))
+    s = Series(data, name="x1")
+    num_features = 1000
+
+    encoded_series = s.hash_encode(num_features)
+    assert isinstance(encoded_series, gd.Series)
+    enc_arr = encoded_series.to_array()
+    assert np.all(enc_arr >= 0)
+    assert np.max(enc_arr) < num_features
+
+    enc_with_name_arr = s.hash_encode(num_features, use_name=True).to_array()
+    assert enc_with_name_arr[0] != enc_arr[0]
+
+
+@pytest.mark.parametrize('dtype', ['int8', 'int16', 'int32', 'int64',
+                                   'float32', 'float64'])
+def test_cuda_array_interface(dtype):
+    try:
+        import cupy
+        _have_cupy = True
+    except ImportError:
+        _have_cupy = False
+    if not _have_cupy:
+        pytest.skip('CuPy is not installed')
+
+    np_data = np.arange(10).astype(dtype)
+    cupy_data = cupy.array(np_data)
+    pd_data = pd.Series(np_data)
+
+    cudf_data = gd.Series(cupy_data)
+    assert_eq(pd_data, cudf_data)
+
+    gdf = gd.DataFrame()
+    gdf['test'] = cupy_data
+    pd_data.name = 'test'
+    assert_eq(pd_data, gdf['test'])
+
+
+@pytest.mark.parametrize('nelem', [0, 2, 3, 100])
+@pytest.mark.parametrize('nchunks', [1, 2, 5, 10])
+@pytest.mark.parametrize(
+    'data_type',
+    ['bool', 'int8', 'int16', 'int32', 'int64',
+     'float32', 'float64', 'datetime64[ms]']
+)
+def test_from_arrow_chunked_arrays(nelem, nchunks, data_type):
+    np_list_data = [np.random.randint(0, 100, nelem).astype(data_type) for
+                    i in range(nchunks)]
+    pa_chunk_array = pa.chunked_array(np_list_data)
+
+    expect = pd.Series(pa_chunk_array.to_pandas())
+    got = gd.Series(pa_chunk_array)
+
+    assert_eq(expect, got)
+
+    np_list_data2 = [np.random.randint(0, 100, nelem).astype(data_type) for
+                     i in range(nchunks)]
+    pa_chunk_array2 = pa.chunked_array(np_list_data2)
+    pa_table = pa.Table.from_arrays([pa_chunk_array, pa_chunk_array2],
+                                    names=['a', 'b'])
+
+    expect = pa_table.to_pandas()
+    got = gd.DataFrame.from_arrow(pa_table)
+
+    assert_eq(expect, got)
+
+
+def test_gpu_memory_usage_with_boolmask():
+    from numba import cuda
+    import cudf
+    ctx = cuda.current_context()
+
+    def query_GPU_memory(note=''):
+        memInfo = ctx.get_memory_info()
+        usedMemoryGB = (memInfo.total - memInfo.free)/1e9
+        return usedMemoryGB
+
+    cuda.current_context().deallocations.clear()
+    nRows = int(1e8)
+    nCols = 2
+    dataNumpy = np.asfortranarray(np.random.rand(nRows, nCols))
+    colNames = ['col'+str(iCol) for iCol in range(nCols)]
+    pandasDF = pd.DataFrame(data=dataNumpy, columns=colNames, dtype=np.float32)
+    cudaDF = cudf.dataframe.DataFrame.from_pandas(pandasDF)
+    boolmask = cudf.Series(np.random.randint(1, 2, len(cudaDF)).astype('bool'))
+
+    memory_used = query_GPU_memory()
+    cudaDF = cudaDF[boolmask]
+
+    assert cudaDF.index._values.data.mem.device_ctypes_pointer ==\
+        cudaDF['col0'].index._values.data.mem.device_ctypes_pointer
+    assert cudaDF.index._values.data.mem.device_ctypes_pointer ==\
+        cudaDF['col1'].index._values.data.mem.device_ctypes_pointer
+
+    assert memory_used == query_GPU_memory()
+
+
+def test_boolmask(pdf, gdf):
+    boolmask = np.random.randint(0, 2, len(pdf)) > 0
+    gdf = gdf[boolmask]
+    pdf = pdf[boolmask]
+    assert_eq(pdf, gdf)
+
+
+def test_1row_arrow_table():
+    data = [pa.array([0]), pa.array([1])]
+    batch = pa.RecordBatch.from_arrays(data, ['f0', 'f1'])
+    table = pa.Table.from_batches([batch])
+
+    expect = table.to_pandas()
+    got = DataFrame.from_arrow(table)
+    assert_eq(expect, got)
+
+
+def test_arrow_handle_no_index_name(pdf, gdf):
+    gdf_arrow = gdf.to_arrow()
+    pdf_arrow = pa.Table.from_pandas(pdf)
+    assert pa.Table.equals(pdf_arrow, gdf_arrow)
+
+    got = DataFrame.from_arrow(gdf_arrow)
+    expect = pdf_arrow.to_pandas()
+    assert_eq(expect, got)
