@@ -23,14 +23,16 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
     gdf_column sides{nullptr, nullptr, total_size, GDF_INT32, 0, {}, nullptr};
     gdf_column indices{nullptr, nullptr, total_size, GDF_INT32, 0, {}, nullptr};
 
-    cudaError_t cudaStatus;
+    rmmError_t rmmStatus;
 
-    cudaStatus = cudaMalloc(&sides.data, sizeof(std::int32_t) * total_size);
-    if (cudaSuccess != cudaStatus) { return GDF_MEMORYMANAGER_ERROR; }
+    rmmStatus =
+        RMM_ALLOC(&sides.data, sizeof(std::int32_t) * total_size, nullptr);
+    if (RMM_SUCCESS != rmmStatus) { return GDF_MEMORYMANAGER_ERROR; }
 
-    cudaStatus = cudaMalloc(&indices.data, sizeof(std::int32_t) * total_size);
-    if (cudaSuccess != cudaStatus) {
-        cudaFree(sides.data);
+    rmmStatus =
+        RMM_ALLOC(&indices.data, sizeof(std::int32_t) * total_size, nullptr);
+    if (RMM_SUCCESS != rmmStatus) {
+        RMM_FREE(sides.data, nullptr);
         return GDF_MEMORYMANAGER_ERROR;
     }
 
@@ -79,8 +81,8 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
             }
         });
 
-    cudaFree(sides.data);
-    cudaFree(indices.data);
+    RMM_FREE(sides.data, nullptr);
+    RMM_FREE(indices.data, nullptr);
 
     return GDF_SUCCESS;
 }
