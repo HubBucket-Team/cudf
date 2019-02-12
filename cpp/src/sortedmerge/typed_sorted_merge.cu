@@ -13,7 +13,7 @@
 #include "soa_info.cuh"
 #include "typed_sorted_merge.cuh"
 
-static void
+static gdf_error
 alloc_filtered_d_cols(const gdf_size_type sort_by_ncols,
                       std::int64_t **&    out_filtered_left_d_cols_data,
                       std::int64_t **&    out_filtered_right_d_cols_data,
@@ -26,23 +26,48 @@ alloc_filtered_d_cols(const gdf_size_type sort_by_ncols,
     std::int32_t *filtered_left_d_col_types;
     std::int32_t *filtered_right_d_col_types;
 
-    RMM_ALLOC(reinterpret_cast<void **>(&filtered_left_d_cols_data),
-              sizeof(std::int64_t) * sort_by_ncols,
-              cudaStream);
-    RMM_ALLOC(reinterpret_cast<void **>(&filtered_right_d_cols_data),
-              sizeof(std::int64_t) * sort_by_ncols,
-              cudaStream);
-    RMM_ALLOC(reinterpret_cast<void **>(&filtered_left_d_col_types),
-              sizeof(std::int32_t) * sort_by_ncols,
-              cudaStream);
-    RMM_ALLOC(reinterpret_cast<void **>(&filtered_right_d_col_types),
-              sizeof(std::int32_t) * sort_by_ncols,
-              cudaStream);
+    rmmError_t rmmStatus;
+
+    rmmStatus = RMM_ALLOC(reinterpret_cast<void **>(&filtered_left_d_cols_data),
+                          sizeof(std::int64_t) * sort_by_ncols,
+                          cudaStream);
+    if (RMM_SUCCESS != rmmStatus) { return GDF_MEMORYMANAGER_ERROR; }
+
+    rmmStatus =
+        RMM_ALLOC(reinterpret_cast<void **>(&filtered_right_d_cols_data),
+                  sizeof(std::int64_t) * sort_by_ncols,
+                  cudaStream);
+    if (RMM_SUCCESS != rmmStatus) {
+        RMM_FREE(filtered_left_d_cols_data, cudaStream);
+        return GDF_MEMORYMANAGER_ERROR;
+    }
+
+    rmmStatus = RMM_ALLOC(reinterpret_cast<void **>(&filtered_left_d_col_types),
+                          sizeof(std::int32_t) * sort_by_ncols,
+                          cudaStream);
+    if (RMM_SUCCESS != rmmStatus) {
+        RMM_FREE(filtered_left_d_cols_data, cudaStream);
+        RMM_FREE(filtered_right_d_cols_data, cudaStream);
+        return GDF_MEMORYMANAGER_ERROR;
+    }
+
+    rmmStatus =
+        RMM_ALLOC(reinterpret_cast<void **>(&filtered_right_d_col_types),
+                  sizeof(std::int32_t) * sort_by_ncols,
+                  cudaStream);
+    if (RMM_SUCCESS != rmmStatus) {
+        RMM_FREE(filtered_left_d_cols_data, cudaStream);
+        RMM_FREE(filtered_right_d_cols_data, cudaStream);
+        RMM_FREE(filtered_left_d_col_types, cudaStream);
+        return GDF_MEMORYMANAGER_ERROR;
+    }
 
     out_filtered_left_d_cols_data  = filtered_left_d_cols_data;
     out_filtered_right_d_cols_data = filtered_right_d_cols_data;
     out_filtered_left_d_col_types  = filtered_left_d_col_types;
     out_filtered_right_d_col_types = filtered_right_d_col_types;
+
+    return GDF_SUCCESS;
 }
 
 enum side_value { LEFT_SIDE_VALUE = 0, RIGHT_SIDE_VALUE };
@@ -94,16 +119,17 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
         thrust::make_tuple(static_cast<std::size_t *>(output_sides->data),
                            static_cast<std::size_t *>(output_indices->data)));
 
-    std::int64_t **filtered_left_d_cols_data;
-    std::int64_t **filtered_right_d_cols_data;
-    std::int32_t * filtered_left_d_col_types;
-    std::int32_t * filtered_right_d_col_types;
-    alloc_filtered_d_cols(sort_by_ncols,
-                          filtered_left_d_cols_data,
-                          filtered_right_d_cols_data,
-                          filtered_left_d_col_types,
-                          filtered_right_d_col_types,
-                          cudaStream);
+    std::int64_t **filtered_left_d_cols_data  = nullptr;
+    std::int64_t **filtered_right_d_cols_data = nullptr;
+    std::int32_t * filtered_left_d_col_types  = nullptr;
+    std::int32_t * filtered_right_d_col_types = nullptr;
+    gdf_error      gdf_status = alloc_filtered_d_cols(sort_by_ncols,
+                                                 filtered_left_d_cols_data,
+                                                 filtered_right_d_cols_data,
+                                                 filtered_left_d_col_types,
+                                                 filtered_right_d_col_types,
+                                                 cudaStream);
+    if (GDF_SUCCESS != gdf_status) { return gdf_status; }
 
     // filter left and right cols for sorting
     std::int32_t *sort_by_d_cols_data =
@@ -153,12 +179,12 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
                       return comp.asc_desc_comparison(left_row, right_row);
                   });
 
-    cudaFree(left_indices);
-    cudaFree(right_indices);
-    cudaFree(filtered_left_d_cols_data);
-    cudaFree(filtered_right_d_cols_data);
-    cudaFree(filtered_left_d_col_types);
-    cudaFree(filtered_right_d_col_types);
+    RMM_FREE(left_indices, cudaStream);
+    RMM_FREE(right_indices, cudaStream);
+    RMM_FREE(filtered_left_d_cols_data, cudaStream);
+    RMM_FREE(filtered_right_d_cols_data, cudaStream);
+    RMM_FREE(filtered_left_d_col_types, cudaStream);
+    RMM_FREE(filtered_right_d_col_types, cudaStream);
 
     return GDF_SUCCESS;
 }
