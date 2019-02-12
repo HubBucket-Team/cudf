@@ -200,6 +200,7 @@ add_library(cudf SHARED
             src/replace/replace.cu
             src/reductions/scan.cu
             src/transpose/transpose.cu
+            src/sortedmerge/alloc_filtered_cols.cu
             src/sortedmerge/make_indices.cu
             src/sortedmerge/pair_rtti.cu
             src/sortedmerge/typed_sorted_merge.cu

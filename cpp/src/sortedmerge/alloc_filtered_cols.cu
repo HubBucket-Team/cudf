@@ -1,0 +1,61 @@
+#include "alloc_filtered_cols.cuh"
+
+#include "rmm/rmm.h"
+
+gdf_error
+alloc_filtered_d_cols(const gdf_size_type sort_by_ncols,
+                      std::int64_t **&    out_filtered_left_d_cols_data,
+                      std::int64_t **&    out_filtered_right_d_cols_data,
+                      std::int32_t *&     out_filtered_left_d_col_types,
+                      std::int32_t *&     out_filtered_right_d_col_types,
+                      cudaStream_t        cudaStream) {
+    std::int64_t **filtered_left_d_cols_data;
+    std::int64_t **filtered_right_d_cols_data;
+
+    std::int32_t *filtered_left_d_col_types;
+    std::int32_t *filtered_right_d_col_types;
+
+    rmmError_t rmmStatus;
+
+    rmmStatus = RMM_ALLOC(reinterpret_cast<void **>(&filtered_left_d_cols_data),
+                          sizeof(std::int64_t) * sort_by_ncols,
+                          cudaStream);
+    if (RMM_SUCCESS != rmmStatus) { return GDF_MEMORYMANAGER_ERROR; }
+
+    rmmStatus =
+        RMM_ALLOC(reinterpret_cast<void **>(&filtered_right_d_cols_data),
+                  sizeof(std::int64_t) * sort_by_ncols,
+                  cudaStream);
+    if (RMM_SUCCESS != rmmStatus) {
+        RMM_FREE(filtered_left_d_cols_data, cudaStream);
+        return GDF_MEMORYMANAGER_ERROR;
+    }
+
+    rmmStatus = RMM_ALLOC(reinterpret_cast<void **>(&filtered_left_d_col_types),
+                          sizeof(std::int32_t) * sort_by_ncols,
+                          cudaStream);
+    if (RMM_SUCCESS != rmmStatus) {
+        RMM_FREE(filtered_left_d_cols_data, cudaStream);
+        RMM_FREE(filtered_right_d_cols_data, cudaStream);
+        return GDF_MEMORYMANAGER_ERROR;
+    }
+
+    rmmStatus =
+        RMM_ALLOC(reinterpret_cast<void **>(&filtered_right_d_col_types),
+                  sizeof(std::int32_t) * sort_by_ncols,
+                  cudaStream);
+    if (RMM_SUCCESS != rmmStatus) {
+        RMM_FREE(filtered_left_d_cols_data, cudaStream);
+        RMM_FREE(filtered_right_d_cols_data, cudaStream);
+        RMM_FREE(filtered_left_d_col_types, cudaStream);
+        return GDF_MEMORYMANAGER_ERROR;
+    }
+
+    out_filtered_left_d_cols_data  = filtered_left_d_cols_data;
+    out_filtered_right_d_cols_data = filtered_right_d_cols_data;
+    out_filtered_left_d_col_types  = filtered_left_d_col_types;
+    out_filtered_right_d_col_types = filtered_right_d_col_types;
+
+    return GDF_SUCCESS;
+}
+
