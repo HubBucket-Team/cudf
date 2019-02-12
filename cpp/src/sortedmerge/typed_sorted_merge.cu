@@ -8,11 +8,11 @@
 #include "../../src/rmm/thrust_rmm_allocator.h"
 #include "../../src/sqls/sqls_rtti_comp.h"
 
+#include "alloc_filtered_cols.cuh"
 #include "make_indices.cuh"
 #include "pair_rtti.cuh"
 #include "soa_info.cuh"
 #include "typed_sorted_merge.cuh"
-#include "alloc_filtered_cols.cuh"
 
 enum side_value { LEFT_SIDE_VALUE = 0, RIGHT_SIDE_VALUE };
 
@@ -30,20 +30,24 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
     GDF_REQUIRE(output_sides->dtype == GDF_INT32, GDF_UNSUPPORTED_DTYPE);
     GDF_REQUIRE(output_indices->dtype == GDF_INT32, GDF_UNSUPPORTED_DTYPE);
 
-    const std::size_t total_size = left_cols[0]->size + right_cols[0]->size;
+    const std::size_t left_size  = left_cols[0]->size;
+    const std::size_t right_size = right_cols[0]->size;
+
+    const std::size_t total_size = left_size + right_size;
     GDF_REQUIRE(output_sides->size >= total_size, GDF_COLUMN_SIZE_MISMATCH);
     GDF_REQUIRE(output_indices->size >= total_size, GDF_COLUMN_SIZE_MISMATCH);
 
     GDF_REQUIRE(sort_by_cols->dtype == GDF_INT32, GDF_UNSUPPORTED_DTYPE);
     GDF_REQUIRE(sort_by_cols->size <= ncols, GDF_COLUMN_SIZE_TOO_BIG);
 
+
     INITIALIZE_D_VALUES(left);
     INITIALIZE_D_VALUES(right);
 
     gdf_size_type sort_by_ncols = sort_by_cols->size;
 
-    std::size_t *left_indices  = make_indices(cudaStream, 8);
-    std::size_t *right_indices = make_indices(cudaStream, 8);
+    std::size_t *left_indices  = make_indices(cudaStream, left_size);
+    std::size_t *right_indices = make_indices(cudaStream, right_size);
 
     const thrust::constant_iterator<int> left_side =
         thrust::make_constant_iterator(static_cast<int>(LEFT_SIDE_VALUE));
@@ -111,9 +115,9 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
 
     thrust::merge(thrust::device,
                   left_zip_iterator,
-                  left_zip_iterator + 4,
+                  left_zip_iterator + left_size,
                   right_zip_iterator,
-                  right_zip_iterator + 2,
+                  right_zip_iterator + right_size,
                   output_zip_iterator,
                   [=] __device__(thrust::tuple<int, std::size_t> left_tuple,
                                  thrust::tuple<int, std::size_t> right_tuple) {
