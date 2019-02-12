@@ -15,11 +15,24 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
                            gdf_column *      sort_by_cols,
                            gdf_column *      asc_desc,
                            gdf_column **     output_cols) {
-    gdf_column sides{nullptr, nullptr, 100, GDF_INT32, 0, {}, nullptr};
-    gdf_column indices{nullptr, nullptr, 100, GDF_INT32, 0, {}, nullptr};
+    const std::size_t left_size  = left_cols[0]->size;
+    const std::size_t right_size = right_cols[0]->size;
 
-    cudaMalloc(&sides.data, 100);
-    cudaMalloc(&indices.data, 100);
+    const std::size_t total_size = left_size + right_size;
+
+    gdf_column sides{nullptr, nullptr, total_size, GDF_INT32, 0, {}, nullptr};
+    gdf_column indices{nullptr, nullptr, total_size, GDF_INT32, 0, {}, nullptr};
+
+    cudaError_t cudaStatus;
+
+    cudaStatus = cudaMalloc(&sides.data, sizeof(std::int32_t) * total_size);
+    if (cudaSuccess != cudaStatus) { return GDF_MEMORYMANAGER_ERROR; }
+
+    cudaStatus = cudaMalloc(&indices.data, sizeof(std::int32_t) * total_size);
+    if (cudaSuccess != cudaStatus) {
+        cudaFree(sides.data);
+        return GDF_MEMORYMANAGER_ERROR;
+    }
 
     gdf_error gdf_status = typed_sorted_merge(left_cols,
                                               right_cols,
@@ -43,7 +56,7 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
         thrust::device,
         thrust::make_zip_iterator(thrust::make_tuple(
             thrust::make_counting_iterator(0), output_zip_iterator)),
-        8,
+        total_size,
         [=] __device__(
             thrust::tuple<int, thrust::tuple<int, std::size_t>> group_tuple) {
             thrust::tuple<int, std::size_t> output_tuple =
