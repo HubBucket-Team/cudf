@@ -17,13 +17,13 @@ gdf_error alloc_filtered_d_cols(const gdf_size_type sort_by_ncols,
     rmmError_t rmmStatus;
 
     rmmStatus = RMM_ALLOC(reinterpret_cast<void **>(&filtered_left_d_cols_data),
-                          sizeof(std::int64_t) * sort_by_ncols,
+                          sizeof(void *) * sort_by_ncols,
                           cudaStream);
     if (RMM_SUCCESS != rmmStatus) { return GDF_MEMORYMANAGER_ERROR; }
 
     rmmStatus =
         RMM_ALLOC(reinterpret_cast<void **>(&filtered_right_d_cols_data),
-                  sizeof(std::int64_t) * sort_by_ncols,
+                  sizeof(void *) * sort_by_ncols,
                   cudaStream);
     if (RMM_SUCCESS != rmmStatus) {
         RMM_FREE(filtered_left_d_cols_data, cudaStream);

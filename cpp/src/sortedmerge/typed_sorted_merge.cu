@@ -45,8 +45,14 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
 
     gdf_size_type sort_by_ncols = sort_by_cols->size;
 
-    std::size_t *left_indices  = make_indices(cudaStream, left_size);
+    std::size_t *left_indices = make_indices(cudaStream, left_size);
+    if (left_indices == nullptr) { return GDF_MEMORYMANAGER_ERROR; }
+
     std::size_t *right_indices = make_indices(cudaStream, right_size);
+    if (left_indices == nullptr) {
+        RMM_FREE(left_indices, cudaStream);
+        return GDF_MEMORYMANAGER_ERROR;
+    }
 
     const thrust::constant_iterator<int> left_side =
         thrust::make_constant_iterator(static_cast<int>(LEFT_SIDE_VALUE));
@@ -76,7 +82,11 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
                                                  filtered_left_d_col_types,
                                                  filtered_right_d_col_types,
                                                  cudaStream);
-    if (GDF_SUCCESS != gdf_status) { return gdf_status; }
+    if (GDF_SUCCESS != gdf_status) {
+        RMM_FREE(left_indices, cudaStream);
+        RMM_FREE(right_indices, cudaStream);
+        return gdf_status;
+    }
 
     // filter left and right cols for sorting
     std::int32_t *sort_by_d_cols_data =
@@ -110,7 +120,7 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
         },
         sort_by_ncols);
 
-    thrust::merge(thrust::device,
+    thrust::merge(rmm::exec_policy(cudaStream),
                   left_zip_iterator,
                   left_zip_iterator + left_size,
                   right_zip_iterator,
