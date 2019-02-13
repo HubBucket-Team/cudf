@@ -40,7 +40,6 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
     GDF_REQUIRE(sort_by_cols->dtype == GDF_INT32, GDF_UNSUPPORTED_DTYPE);
     GDF_REQUIRE(sort_by_cols->size <= ncols, GDF_COLUMN_SIZE_TOO_BIG);
 
-
     INITIALIZE_D_VALUES(left);
     INITIALIZE_D_VALUES(right);
 
@@ -67,11 +66,11 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
         thrust::make_tuple(static_cast<std::size_t *>(output_sides->data),
                            static_cast<std::size_t *>(output_indices->data)));
 
-    std::int64_t **filtered_left_d_cols_data  = nullptr;
-    std::int64_t **filtered_right_d_cols_data = nullptr;
-    std::int32_t * filtered_left_d_col_types  = nullptr;
-    std::int32_t * filtered_right_d_col_types = nullptr;
-    gdf_error      gdf_status = alloc_filtered_d_cols(sort_by_ncols,
+    void **       filtered_left_d_cols_data  = nullptr;
+    void **       filtered_right_d_cols_data = nullptr;
+    std::int32_t *filtered_left_d_col_types  = nullptr;
+    std::int32_t *filtered_right_d_col_types = nullptr;
+    gdf_error     gdf_status = alloc_filtered_d_cols(sort_by_ncols,
                                                  filtered_left_d_cols_data,
                                                  filtered_right_d_cols_data,
                                                  filtered_left_d_col_types,
@@ -82,25 +81,23 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
     // filter left and right cols for sorting
     std::int32_t *sort_by_d_cols_data =
         reinterpret_cast<std::int32_t *>(sort_by_cols->data);
-    thrust::for_each_n(
-        thrust::device,
-        thrust::make_counting_iterator(0),
-        sort_by_ncols,
-        [=] __device__(const int n) {
-            const std::int32_t n_col = sort_by_d_cols_data[n];
+    thrust::for_each_n(rmm::exec_policy(cudaStream),
+                       thrust::make_counting_iterator(0),
+                       sort_by_ncols,
+                       [=] __device__(const int n) {
+                           const std::int32_t n_col = sort_by_d_cols_data[n];
 
-            std::int64_t *left_data =
-                reinterpret_cast<std::int64_t *>(left_d_cols_data[n_col]);
+                           void *left_data  = left_d_cols_data[n_col];
+                           void *right_data = right_d_cols_data[n_col];
 
-            std::int64_t *right_data =
-                reinterpret_cast<std::int64_t *>(right_d_cols_data[n_col]);
+                           filtered_left_d_cols_data[n]  = left_data;
+                           filtered_right_d_cols_data[n] = right_data;
 
-            filtered_left_d_cols_data[n]  = left_data;
-            filtered_right_d_cols_data[n] = right_data;
-
-            filtered_left_d_col_types[n]  = left_d_col_types[n_col];
-            filtered_right_d_col_types[n] = right_d_col_types[n_col];
-        });
+                           filtered_left_d_col_types[n] =
+                               left_d_col_types[n_col];
+                           filtered_right_d_col_types[n] =
+                               right_d_col_types[n_col];
+                       });
 
     PairRTTI<std::size_t> comp(
         {
