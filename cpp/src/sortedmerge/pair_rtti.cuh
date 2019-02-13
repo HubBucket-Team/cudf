@@ -2,7 +2,10 @@
 
 #include <cstdint>
 
+#include <cuda_runtime.h>
 #include <cudf.h>
+
+#include <utilities/cudf_utils.h>
 
 template <class IndexT>
 class PairRTTI {
@@ -16,6 +19,13 @@ public:
     __device__ bool asc_desc_comparison(IndexT left_row,
                                         IndexT right_row) const {
         for (gdf_size_type i = 0; i < size_; i++) {
+            const bool left_valid =
+                gdf_is_valid(left_side_group_.valids[i], left_row);
+            const bool right_valid =
+                gdf_is_valid(right_side_group_.valids[i], right_row);
+
+            if (!left_valid || !right_valid) { return true; }
+
             const std::int64_t left_value =
                 reinterpret_cast<const std::int64_t *>(
                     left_side_group_.cols[i])[left_row];

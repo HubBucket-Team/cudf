@@ -40,12 +40,28 @@ static gdf_column *MakeGdfColumn(
         throw std::runtime_error("cudaMalloc for data");
     }
 
+    const std::size_t validLength =
+        static_cast<std::size_t>(std::ceil(length / 8.0));
     gdf_valid_type *valid;
-    cudaError =
-        cudaMalloc(&valid, static_cast<std::size_t>(std::ceil(length / 8.0)));
+    cudaError = cudaMalloc(&valid, validLength);
     if (cudaSuccess != cudaError) {
         cudaFree(data);
         throw std::runtime_error("cudaMalloc for valid");
+    }
+    cudaError = cudaMemset(valid, 0, validLength);
+    if (cudaSuccess != cudaError) {
+        cudaFree(data);
+        cudaFree(valid);
+        throw std::runtime_error("cudaMemset for valid");
+    }
+    cudaError = cudaMemset(valid,
+                           static_cast<std::uint8_t>(-1) >>
+                               (sizeof(std::uint64_t) - initialData.size()),
+                           1);
+    if (cudaSuccess != cudaError) {
+        cudaFree(data);
+        cudaFree(valid);
+        throw std::runtime_error("cudaMemset for valid");
     }
 
     cudaError = cudaMemcpy(data,
@@ -57,10 +73,6 @@ static gdf_column *MakeGdfColumn(
         cudaFree(valid);
         throw std::runtime_error("cudaMemcpy initial data");
     }
-
-    std::int64_t d[16];
-    cudaError = cudaMemcpy(
-        d, data, initialData.size() * DTraits<D>::size, cudaMemcpyDeviceToHost);
 
     return new gdf_column{
         data, valid, length, D, length - initialData.size(), {}, nullptr};

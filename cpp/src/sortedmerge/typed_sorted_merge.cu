@@ -40,6 +40,7 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
     GDF_REQUIRE(sort_by_cols->dtype == GDF_INT32, GDF_UNSUPPORTED_DTYPE);
     GDF_REQUIRE(sort_by_cols->size <= ncols, GDF_COLUMN_SIZE_TOO_BIG);
 
+    // TODO: Remove. Get from gdf_sorted_merge parameters
     INITIALIZE_D_VALUES(left);
     INITIALIZE_D_VALUES(right);
 
