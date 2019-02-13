@@ -38,6 +38,7 @@ private:
 template <class IndexT>
 class PairRTTI<IndexT>::SideGroup {
 public:
-    const void *const *const cols;
-    const int *const         types;
+    const void *const *const           cols;
+    const gdf_valid_type *const *const valids;
+    const int *const                   types;
 };

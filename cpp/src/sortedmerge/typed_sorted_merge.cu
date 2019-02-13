@@ -72,13 +72,17 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
         thrust::make_tuple(static_cast<std::size_t *>(output_sides->data),
                            static_cast<std::size_t *>(output_indices->data)));
 
-    void **       filtered_left_d_cols_data  = nullptr;
-    void **       filtered_right_d_cols_data = nullptr;
-    std::int32_t *filtered_left_d_col_types  = nullptr;
-    std::int32_t *filtered_right_d_col_types = nullptr;
-    gdf_error     gdf_status = alloc_filtered_d_cols(sort_by_ncols,
+    void **          filtered_left_d_cols_data    = nullptr;
+    void **          filtered_right_d_cols_data   = nullptr;
+    gdf_valid_type **filtered_left_d_valids_data  = nullptr;
+    gdf_valid_type **filtered_right_d_valids_data = nullptr;
+    std::int32_t *   filtered_left_d_col_types    = nullptr;
+    std::int32_t *   filtered_right_d_col_types   = nullptr;
+    gdf_error        gdf_status = alloc_filtered_d_cols(sort_by_ncols,
                                                  filtered_left_d_cols_data,
                                                  filtered_right_d_cols_data,
+                                                 filtered_left_d_valids_data,
+                                                 filtered_right_d_valids_data,
                                                  filtered_left_d_col_types,
                                                  filtered_right_d_col_types,
                                                  cudaStream);
@@ -91,31 +95,41 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
     // filter left and right cols for sorting
     std::int32_t *sort_by_d_cols_data =
         reinterpret_cast<std::int32_t *>(sort_by_cols->data);
-    thrust::for_each_n(rmm::exec_policy(cudaStream),
-                       thrust::make_counting_iterator(0),
-                       sort_by_ncols,
-                       [=] __device__(const int n) {
-                           const std::int32_t n_col = sort_by_d_cols_data[n];
+    thrust::for_each_n(
+        rmm::exec_policy(cudaStream),
+        thrust::make_counting_iterator(0),
+        sort_by_ncols,
+        [=] __device__(const int n) {
+            const std::int32_t n_col = sort_by_d_cols_data[n];
 
-                           void *left_data  = left_d_cols_data[n_col];
-                           void *right_data = right_d_cols_data[n_col];
+            void *const left_data  = left_d_cols_data[n_col];
+            void *const right_data = right_d_cols_data[n_col];
 
-                           filtered_left_d_cols_data[n]  = left_data;
-                           filtered_right_d_cols_data[n] = right_data;
+            gdf_valid_type *const left_valids  = left_d_valids_data[n_col];
+            gdf_valid_type *const right_valids = right_d_valids_data[n_col];
 
-                           filtered_left_d_col_types[n] =
-                               left_d_col_types[n_col];
-                           filtered_right_d_col_types[n] =
-                               right_d_col_types[n_col];
-                       });
+            const std::int32_t left_types  = left_d_col_types[n_col];
+            const std::int32_t right_types = right_d_col_types[n_col];
+
+            filtered_left_d_cols_data[n]  = left_data;
+            filtered_right_d_cols_data[n] = right_data;
+
+            filtered_left_d_valids_data[n]  = left_valids;
+            filtered_right_d_valids_data[n] = right_valids;
+
+            filtered_left_d_col_types[n]  = left_types;
+            filtered_right_d_col_types[n] = right_types;
+        });
 
     PairRTTI<std::size_t> comp(
         {
-            reinterpret_cast<void **>(filtered_left_d_cols_data),
+            filtered_left_d_cols_data,
+            filtered_left_d_valids_data,
             filtered_left_d_col_types,
         },
         {
-            reinterpret_cast<void **>(filtered_right_d_cols_data),
+            filtered_right_d_cols_data,
+            filtered_right_d_valids_data,
             filtered_right_d_col_types,
         },
         sort_by_ncols);
