@@ -14,9 +14,10 @@ class PairRTTI {
 public:
     class SideGroup;
 
-    explicit PairRTTI(const SideGroup &   left_side_group,
-                      const SideGroup &   right_side_group,
-                      const gdf_size_type size);
+    explicit PairRTTI(const SideGroup &        left_side_group,
+                      const SideGroup &        right_side_group,
+                      const gdf_size_type      size,
+                      const std::int8_t *const asc_desc_flags);
 
     __device__ bool asc_desc_comparison(IndexT left_row,
                                         IndexT right_row) const {
@@ -36,6 +37,11 @@ public:
             const void *const left_col  = left_side_group_.cols[i];
             const void *const right_col = right_side_group_.cols[i];
 
+            bool asc = true;
+            if (asc_desc_flags_ != nullptr) {
+                asc = asc_desc_flags_[i] == GDF_ORDER_ASC;
+            }
+
             // TODO: From sorted_merge function we can create a column wrapper
             //       class with type info instead of use soa_col_info. Thus, we
             //       can use the compiler type checking.
@@ -46,13 +52,13 @@ public:
                 reinterpret_cast<const LEFT_CTYPE *>(left_col)[i];             \
             const RIGHT_CTYPE right_value =                                    \
                 reinterpret_cast<const RIGHT_CTYPE *>(right_col)[i];           \
-            if (left_value < right_value) {                                    \
-                return false;                                                  \
+            if (asc) {                                                         \
+                if (left_value < right_value) { return false; }                \
             } else {                                                           \
-                continue;                                                      \
+                if (left_value > right_value) { return false; }                \
             }                                                                  \
+            continue;                                                          \
         } while (0)
-
 
 #define LEFT_CASE(DTYPE, LEFT_CTYPE)                                           \
     case DTYPE:                                                                \
@@ -83,9 +89,10 @@ public:
     }
 
 private:
-    const SideGroup     left_side_group_;
-    const SideGroup     right_side_group_;
-    const gdf_size_type size_;
+    const SideGroup          left_side_group_;
+    const SideGroup          right_side_group_;
+    const gdf_size_type      size_;
+    const std::int8_t *const asc_desc_flags_;
 };
 
 template <class IndexT>

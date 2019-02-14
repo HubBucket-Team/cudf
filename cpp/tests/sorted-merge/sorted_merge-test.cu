@@ -52,7 +52,7 @@ static gdf_column *MakeGdfColumn(
     if (cudaSuccess != cudaError) {
         cudaFree(data);
         cudaFree(valid);
-        throw std::runtime_error("cudaMemset for valid");
+        throw std::runtime_error("cudaMemset for clean valid");
     }
     cudaError = cudaMemset(valid,
                            static_cast<std::uint8_t>(-1) >>
@@ -112,7 +112,7 @@ TEST(SortedMergeTest, MergeTwoSortedColumns) {
     gdf_column *outputColumns[] = {outputColumn1, outputColumn2};
 
     gdf_column *orders =
-        MakeGdfColumn<GDF_INT64>(2, {GDF_ORDER_ASC, GDF_ORDER_DESC});
+        MakeGdfColumn<GDF_INT8>(2, {GDF_ORDER_ASC, GDF_ORDER_DESC});
 
     gdf_column *outputIndices = MakeGdfColumn<GDF_INT32>(1, {0});
 

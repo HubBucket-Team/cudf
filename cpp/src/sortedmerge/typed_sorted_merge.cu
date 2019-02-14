@@ -27,6 +27,9 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
     GDF_REQUIRE((nullptr != left_cols && nullptr != right_cols),
                 GDF_DATASET_EMPTY);
 
+    GDF_REQUIRE(nullptr != asc_desc, GDF_DATASET_EMPTY);
+    GDF_REQUIRE(asc_desc || asc_desc->dtype == GDF_INT8, GDF_UNSUPPORTED_DTYPE);
+
     GDF_REQUIRE(output_sides->dtype == GDF_INT32, GDF_UNSUPPORTED_DTYPE);
     GDF_REQUIRE(output_indices->dtype == GDF_INT32, GDF_UNSUPPORTED_DTYPE);
 
@@ -133,7 +136,8 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
             filtered_right_d_valids_data,
             filtered_right_d_col_types,
         },
-        sort_by_ncols);
+        sort_by_ncols,
+        static_cast<const std::int8_t *>(asc_desc->data));
 
     thrust::merge(rmm::exec_policy(cudaStream),
                   left_zip_iterator,
