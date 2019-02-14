@@ -46,19 +46,18 @@ public:
             //       class with type info instead of use soa_col_info. Thus, we
             //       can use the compiler type checking.
 #define RIGHT_CASE(DTYPE, LEFT_CTYPE, RIGHT_CTYPE)                             \
-    case DTYPE:                                                                \
-        do {                                                                   \
-            const LEFT_CTYPE left_value =                                      \
-                reinterpret_cast<const LEFT_CTYPE *>(left_col)[i];             \
-            const RIGHT_CTYPE right_value =                                    \
-                reinterpret_cast<const RIGHT_CTYPE *>(right_col)[i];           \
-            if (asc) {                                                         \
-                if (left_value < right_value) { return false; }                \
-            } else {                                                           \
-                if (left_value > right_value) { return false; }                \
-            }                                                                  \
-            continue;                                                          \
-        } while (0)
+    case DTYPE: {                                                              \
+        const LEFT_CTYPE left_value =                                          \
+            reinterpret_cast<const LEFT_CTYPE *>(left_col)[left_row];          \
+        const RIGHT_CTYPE right_value =                                        \
+            reinterpret_cast<const RIGHT_CTYPE *>(right_col)[right_row];       \
+        if (asc) {                                                             \
+            if (left_value < right_value) { return false; }                    \
+        } else {                                                               \
+            if (left_value > right_value) { return false; }                    \
+        }                                                                      \
+    }                                                                          \
+        continue
 
 #define LEFT_CASE(DTYPE, LEFT_CTYPE)                                           \
     case DTYPE:                                                                \
@@ -71,6 +70,7 @@ public:
             RIGHT_CASE(GDF_FLOAT64, LEFT_CTYPE, double);                       \
             RIGHT_CASE(GDF_DATE32, LEFT_CTYPE, std::int32_t);                  \
             RIGHT_CASE(GDF_DATE64, LEFT_CTYPE, std::int64_t);                  \
+        default: assert(false && "comparison: invalid right gdf_type");        \
         }
 
             switch (left_dtype) {
@@ -82,6 +82,7 @@ public:
                 LEFT_CASE(GDF_FLOAT64, double);
                 LEFT_CASE(GDF_DATE32, std::int32_t);
                 LEFT_CASE(GDF_DATE64, std::int64_t);
+            default: assert(false && "comparison: invalid left gdf_type");
             }
         }
 

@@ -47,8 +47,8 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
     if (GDF_SUCCESS != gdf_status) { return gdf_status; }
 
     auto output_zip_iterator = thrust::make_zip_iterator(
-        thrust::make_tuple(static_cast<std::int64_t *>(sides.data),
-                           static_cast<std::int64_t *>(indices.data)));
+        thrust::make_tuple(static_cast<std::int32_t *>(sides.data),
+                           static_cast<std::int32_t *>(indices.data)));
 
     INITIALIZE_D_VALUES(left);
     INITIALIZE_D_VALUES(right);
@@ -68,16 +68,28 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
             const std::size_t pos  = thrust::get<1>(output_tuple);
 
             for (std::size_t i = 0; i < ncols; i++) {
-                const std::int64_t *left =
-                    reinterpret_cast<std::int64_t *>(left_d_cols_data[i]);
-                const std::int64_t *right =
-                    reinterpret_cast<std::int64_t *>(right_d_cols_data[i]);
+                const gdf_dtype output_type =
+                    static_cast<gdf_dtype>(output_d_col_types[i]);
 
-                std::int64_t *output =
-                    reinterpret_cast<std::int64_t *>(output_d_cols_data[i]);
+#define CASE(DTYPE, CTYPE)                                                     \
+    case DTYPE: {                                                              \
+        CTYPE *output = reinterpret_cast<CTYPE *>(output_d_cols_data[i]);      \
+        output[thrust::get<0>(group_tuple)] =                                  \
+            0 == side ? reinterpret_cast<CTYPE *>(left_d_cols_data[i])[pos]    \
+                      : reinterpret_cast<CTYPE *>(right_d_cols_data[i])[pos];  \
+    } break
 
-                output[thrust::get<0>(group_tuple)] =
-                    0 == side ? left[pos] : right[pos];
+                switch (output_type) {
+                    CASE(GDF_INT8, std::int8_t);
+                    CASE(GDF_INT16, std::int16_t);
+                    CASE(GDF_INT32, std::int32_t);
+                    CASE(GDF_INT64, std::int64_t);
+                    CASE(GDF_FLOAT32, float);
+                    CASE(GDF_FLOAT64, double);
+                    CASE(GDF_DATE32, std::int32_t);
+                    CASE(GDF_DATE64, std::int64_t);
+                default: assert(false && "comparison: invalid output gdf_type");
+                }
             }
         });
 

@@ -12,8 +12,9 @@ class DTraits {};
     template <>                                                                \
     class DTraits<D> {                                                         \
     public:                                                                    \
-        using ctype                       = C;                                 \
-        static constexpr std::size_t size = sizeof(ctype);                     \
+        using ctype                        = C;                                \
+        static constexpr std::size_t size  = sizeof(ctype);                    \
+        static constexpr gdf_dtype   dtype = D;                                \
     }
 
 DTRAITS_FACTORY(GDF_INT8, std::int8_t);
@@ -22,9 +23,8 @@ DTRAITS_FACTORY(GDF_INT32, std::int32_t);
 DTRAITS_FACTORY(GDF_INT64, std::int64_t);
 DTRAITS_FACTORY(GDF_FLOAT32, float);
 DTRAITS_FACTORY(GDF_FLOAT64, double);
-
-#undef DTRAITS_FACTORY
-
+DTRAITS_FACTORY(GDF_DATE32, std::int32_t);
+DTRAITS_FACTORY(GDF_DATE64, std::int64_t);
 
 template <gdf_dtype D>
 static gdf_column *MakeGdfColumn(
@@ -78,33 +78,47 @@ static gdf_column *MakeGdfColumn(
         data, valid, length, D, length - initialData.size(), {}, nullptr};
 }
 
-static void ExpectEqColumns(const std::int64_t *expectedData,
-                            gdf_column *        outputColumn,
-                            const std::size_t   outputLength,
-                            const std::string & message) {
-    std::int64_t resultData[outputLength];
-    cudaError_t  cudaError = cudaMemcpy(resultData,
-                                       outputColumn->data,
-                                       outputLength * DTraits<GDF_INT64>::size,
-                                       cudaMemcpyDeviceToHost);
-    if (cudaSuccess != cudaError) { FAIL() << "cudaMempcy output column"; }
+template <class DTraits>
+class SortedMergeTest : public testing::Test {
+protected:
+    static void ExpectEqColumns(const typename DTraits::ctype *expectedData,
+                                gdf_column *                   outputColumn,
+                                const std::size_t              outputLength,
+                                const std::string &            message) {
+        typename DTraits::ctype resultData[outputLength];
+        cudaError_t             cudaError = cudaMemcpy(resultData,
+                                           outputColumn->data,
+                                           outputLength * DTraits::size,
+                                           cudaMemcpyDeviceToHost);
+        if (cudaSuccess != cudaError) { FAIL() << "cudaMempcy output column"; }
 
-    for (std::size_t i = 0; i < 6; i++) {
-        EXPECT_EQ(expectedData[i], resultData[i])
-            << "i = " << i << " " << message;
+        for (std::size_t i = 0; i < 6; i++) {
+            EXPECT_EQ(expectedData[i], resultData[i])
+                << "i = " << i << " " << message;
+        }
     }
-}
+};
 
-TEST(SortedMergeTest, MergeTwoSortedColumns) {
-    gdf_column *leftColumn1 = MakeGdfColumn<GDF_INT64>(4, {0, 1, 2, 3});
-    gdf_column *leftColumn2 = MakeGdfColumn<GDF_INT64>(4, {4, 5, 6, 7});
+using SortedMergerTypes = testing::Types<DTraits<GDF_INT8>,
+                                         DTraits<GDF_INT16>,
+                                         DTraits<GDF_INT32>,
+                                         DTraits<GDF_INT64>,
+                                         DTraits<GDF_FLOAT32>,
+                                         DTraits<GDF_FLOAT64>,
+                                         DTraits<GDF_DATE32>,
+                                         DTraits<GDF_DATE64>>;
+TYPED_TEST_CASE(SortedMergeTest, SortedMergerTypes);
 
-    gdf_column *rightColumn1 = MakeGdfColumn<GDF_INT64>(2, {1, 2});
-    gdf_column *rightColumn2 = MakeGdfColumn<GDF_INT64>(2, {8, 9});
+TYPED_TEST(SortedMergeTest, MergeTwoSortedColumns) {
+    gdf_column *leftColumn1 = MakeGdfColumn<TypeParam::dtype>(4, {0, 1, 2, 3});
+    gdf_column *leftColumn2 = MakeGdfColumn<TypeParam::dtype>(4, {4, 5, 6, 7});
 
-    const std::size_t outputLength  = 16;
-    gdf_column *      outputColumn1 = MakeGdfColumn<GDF_INT64>(outputLength);
-    gdf_column *      outputColumn2 = MakeGdfColumn<GDF_INT64>(outputLength);
+    gdf_column *rightColumn1 = MakeGdfColumn<TypeParam::dtype>(2, {1, 2});
+    gdf_column *rightColumn2 = MakeGdfColumn<TypeParam::dtype>(2, {8, 9});
+
+    const std::size_t outputLength = 16;
+    gdf_column *outputColumn1 = MakeGdfColumn<TypeParam::dtype>(outputLength);
+    gdf_column *outputColumn2 = MakeGdfColumn<TypeParam::dtype>(outputLength);
 
     gdf_column *leftColumns[]  = {leftColumn1, leftColumn2};
     gdf_column *rightColumns[] = {rightColumn1, rightColumn2};
@@ -126,9 +140,11 @@ TEST(SortedMergeTest, MergeTwoSortedColumns) {
 
     EXPECT_EQ(GDF_SUCCESS, gdfError);
 
-    const std::int64_t expectedData1[] = {0, 1, 1, 2, 2, 3};
-    const std::int64_t expectedData2[] = {4, 5, 8, 9, 6, 7};
+    const typename TypeParam::ctype expectedData1[] = {0, 1, 1, 2, 2, 3};
+    const typename TypeParam::ctype expectedData2[] = {4, 5, 8, 9, 6, 7};
 
-    ExpectEqColumns(expectedData1, outputColumn1, outputLength, "block 1");
-    ExpectEqColumns(expectedData2, outputColumn2, outputLength, "block 2");
+    this->ExpectEqColumns(
+        expectedData1, outputColumn1, outputLength, "block 1");
+    this->ExpectEqColumns(
+        expectedData2, outputColumn2, outputLength, "block 2");
 }

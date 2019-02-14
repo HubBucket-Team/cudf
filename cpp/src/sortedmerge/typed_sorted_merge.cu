@@ -43,7 +43,7 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
     GDF_REQUIRE(sort_by_cols->dtype == GDF_INT32, GDF_UNSUPPORTED_DTYPE);
     GDF_REQUIRE(sort_by_cols->size <= ncols, GDF_COLUMN_SIZE_TOO_BIG);
 
-    // TODO: Remove. Get from gdf_sorted_merge parameters
+    // TODO: Get as gdf_sorted_merge parameters
     INITIALIZE_D_VALUES(left);
     INITIALIZE_D_VALUES(right);
 
@@ -73,8 +73,8 @@ gdf_error typed_sorted_merge(gdf_column **     left_cols,
             thrust::make_tuple(right_side, right_indices));
 
     auto output_zip_iterator = thrust::make_zip_iterator(
-        thrust::make_tuple(static_cast<std::size_t *>(output_sides->data),
-                           static_cast<std::size_t *>(output_indices->data)));
+        thrust::make_tuple(static_cast<std::int32_t *>(output_sides->data),
+                           static_cast<std::int32_t *>(output_indices->data)));
 
     void **          filtered_left_d_cols_data    = nullptr;
     void **          filtered_right_d_cols_data   = nullptr;
