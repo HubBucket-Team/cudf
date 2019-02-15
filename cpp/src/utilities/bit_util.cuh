@@ -17,6 +17,9 @@
  */
 #pragma once
 
+#include <climits>
+#include <cstdint>
+
 namespace gdf {
 namespace util {
 
@@ -39,35 +42,46 @@ using ValidType = uint32_t;
 ///  return  bits == nullptr? true :  bits[i >> size_t(3)] & (1 << (i & size_t(7)));
 ///}
 
-__host__ __device__ __forceinline__
-  uint8_t
-  byte_bitmask(size_t i)
-{
-  static uint8_t kBitmask[8] = { 1, 2, 4, 8, 16, 32, 64, 128 };
-  return kBitmask[i];
-}
-
-__host__ __device__ __forceinline__
-  uint8_t
-  flipped_bitmask(size_t i)
-{
-  static uint8_t kFlippedBitmask[] = { 254, 253, 251, 247, 239, 223, 191, 127 };
-  return kFlippedBitmask[i];
-}
-
 __host__ __device__ __forceinline__ void turn_bit_on(uint8_t* const bits, size_t i)
 {
-  bits[i / 8] |= byte_bitmask(i % 8);
+  bits[i / 8] |= (1 << (i % 8));
 }
 
 __host__ __device__ __forceinline__ void turn_bit_off(uint8_t* const bits, size_t i)
 {
-  bits[i / 8] &= flipped_bitmask(i % 8);
+  bits[i / 8] &= ~(1 << (i % 8));
 }
 
 __host__ __device__ __forceinline__ size_t last_byte_index(size_t column_size)
 {
   return (column_size + 8 - 1) / 8;
+}
+
+/**
+ * Checks if a bit is set in a sequence of bits in container types,
+ * such that within each container the bits are ordered LSB to MSB
+ *
+ * @note this is endianness-neutral
+ *
+ * @param bits pointer to the beginning of the sequence of bits
+ * @param bit_index index to check in the sequence
+ * @return 0 if the bit is unset, 1 otherwise
+ */
+template <typename BitContainer, typename Size>
+__host__ __device__ __forceinline__ auto bit_is_set(const BitContainer* bits, Size bit_index)
+{
+    enum : Size { bits_per_container = sizeof(BitContainer) * CHAR_BIT };
+    auto container_index = bit_index / bits_per_container;
+    auto intra_container_index = bit_index % bits_per_container;
+    return (bits[container_index] >> intra_container_index) & 1;
+}
+
+template <typename BitContainer, typename Size>
+__host__ __device__ __forceinline__ auto bit_is_set(const BitContainer& bit_container, Size bit_index)
+{
+    enum : Size { bits_per_container = sizeof(BitContainer) * CHAR_BIT };
+    auto intra_container_index = bit_index % bits_per_container;
+    return (bit_container >> intra_container_index) & 1;
 }
 
 static inline std::string chartobin(gdf_valid_type c, size_t size = 8)
