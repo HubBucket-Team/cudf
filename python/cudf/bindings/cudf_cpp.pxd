@@ -604,7 +604,7 @@ cdef extern from "cudf.h" nogil:
                                 int8_t* asc_desc,
                                 size_t num_inputs,
                                 gdf_column* output_indices,
-                                int flag_nulls_are_smallest)
+                                gdf_context* ctxt)
 
     cdef gdf_error gdf_filter(size_t nrows,
                  gdf_column* cols,
