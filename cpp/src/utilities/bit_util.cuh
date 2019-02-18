@@ -42,6 +42,22 @@ using ValidType = uint32_t;
 ///  return  bits == nullptr? true :  bits[i >> size_t(3)] & (1 << (i & size_t(7)));
 ///}
 
+__host__ __device__ __forceinline__
+  uint8_t
+  byte_bitmask(size_t i)
+{
+  static uint8_t kBitmask[8] = { 1, 2, 4, 8, 16, 32, 64, 128 };
+  return kBitmask[i];
+}
+
+__host__ __device__ __forceinline__
+  uint8_t
+  flipped_bitmask(size_t i)
+{
+  static uint8_t kFlippedBitmask[] = { 254, 253, 251, 247, 239, 223, 191, 127 };
+  return kFlippedBitmask[i];
+}
+
 __host__ __device__ __forceinline__ void turn_bit_on(uint8_t* const bits, size_t i)
 {
   bits[i / 8] |= (1 << (i % 8));
