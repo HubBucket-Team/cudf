@@ -31,7 +31,7 @@
 #include "tests/utilities/cudf_test_utils.cuh"
 #include "tests/utilities/valid_vectors.h"
 
-// Note: A few fixed lengths are not sufficient to test gpu_apply_stencil.
+// Note: A few fixed lengths are not sufficient to test gdf_apply_stencil.
 // Multiple lengths are necessary to cover the large number of cases
 struct lengths {
 enum : gdf_size_type {
@@ -244,7 +244,7 @@ struct GpuApplyStencilTest : public GdfTest {
     }
 
     gdf_error compute_gdf_result() {
-        gdf_error error = gpu_apply_stencil(col.get(), stencil.get(), output.get());
+        gdf_error error = gdf_apply_stencil(col.get(), stencil.get(), output.get());
         return error;
     }
 
@@ -455,7 +455,7 @@ TYPED_TEST(GpuApplyStencilTest, none_all_all_non_multiple_of_32) {
 
     gdf_error error = this->compute_gdf_result();
     if (error != GDF_SUCCESS) {
-        std::cout << "gpu_apply_stencil returned the error: " << gdf_error_get_name(error) << '\n';
+        std::cout << "gdf_apply_stencil returned the error: " << gdf_error_get_name(error) << '\n';
     }
     ASSERT_EQ(error, GDF_SUCCESS) << "GPU Apply stencil returned an error code\n";
 

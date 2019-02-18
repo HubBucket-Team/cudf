@@ -644,7 +644,7 @@ gdf_size_type make_aligned_size(gdf_size_type size)
 }
 
 
-// This class should be merely a templated lambda within gpu_apply_stencil,
+// This class should be merely a templated lambda within gdf_apply_stencil,
 // but support for those is not available before C++17, while this code is
 // targetting C++14
 template <
@@ -705,7 +705,7 @@ struct apply_stencil_helper {
  * must have their start and end addresses of be multiples of 4, i.e. interpretable as
  * `bit_container *`
  */
-gdf_error gpu_apply_stencil(
+gdf_error gdf_apply_stencil(
     gdf_column* column,
     gdf_column* stencil,
     gdf_column* output)
