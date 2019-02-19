@@ -26,6 +26,7 @@
 #include "utilities/type_dispatcher.hpp"
 #include <cuda_runtime_api.h>
 #include <algorithm>
+#include "string/nvcategory_util.cuh"
 
 // forward decl -- see validops.cu
 gdf_error gdf_mask_concat(gdf_valid_type *output_mask,
@@ -84,7 +85,8 @@ gdf_error gdf_column_concat(gdf_column *output_column, gdf_column *columns_to_co
                   [](gdf_column *col) { return (nullptr != col->valid); })};
 
   GDF_REQUIRE(column_type == output_column->dtype, GDF_DTYPE_MISMATCH);
-  GDF_REQUIRE(output_column->size == total_size, GDF_COLUMN_SIZE_MISMATCH);
+  GDF_REQUIRE(output_column->size > total_size, GDF_COLUMN_SIZE_MISMATCH);
+  // sum of the sizes of the input columns must equal output column size
 
   // TODO optimizations if needed
   // 1. Either 
@@ -102,11 +104,19 @@ gdf_error gdf_column_concat(gdf_column *output_column, gdf_column *columns_to_co
   GDF_REQUIRE(GDF_SUCCESS == result, result);
 
   // copy data
-  for (int i = 0; i < num_columns; ++i) {   
-    gdf_size_type bytes = column_byte_width * columns_to_concat[i]->size;
-    CUDA_TRY( cudaMemcpy(target, columns_to_concat[i]->data, bytes, cudaMemcpyDeviceToDevice) );
-    target += bytes;
-    output_column->null_count += columns_to_concat[i]->null_count;
+  if(columns_to_concat[0]->dtype == GDF_STRING_CATEGORY){
+      concat_categories(columns_to_concat,output_column,num_columns);
+	  for (int i = 0; i < num_columns; ++i) {
+        output_column->null_count += columns_to_concat[i]->null_count;
+    }
+  }else{
+	for (int i = 0; i < num_columns; ++i) {
+	  gdf_size_type bytes = column_byte_width * columns_to_concat[i]->size;
+	  CUDA_TRY( cudaMemcpy(target, columns_to_concat[i]->data, bytes, cudaMemcpyDeviceToDevice) );
+      target += bytes;
+      output_column->null_count += columns_to_concat[i]->null_count;
+	}
+
   }
   
   if (at_least_one_mask_present) {

@@ -194,6 +194,13 @@ set(TRANSPOSE_TEST_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/transpose/transpose_test.cu")
 
 ConfigureTest(TRANSPOSE_TEST "${TRANSPOSE_TEST_SRC}")
+###################################################################################################
+# - nvcategory tests ------------------------------------------------------------------------------
+
+set(NVCATEGORY_TEST_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/nvcategory/nvcategory_test.cu")
+
+ConfigureTest(NVCATEGORY_TEST "${NVCATEGORY_TEST_SRC}")
 
 ###################################################################################################
 ### enable testing ################################################################################

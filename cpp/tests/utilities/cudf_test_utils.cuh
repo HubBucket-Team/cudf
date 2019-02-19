@@ -114,7 +114,11 @@ struct column_printer {
     template <typename col_type>
     void operator()(const gdf_column& column, unsigned min_printing_width = 1)
     {
+<<<<<<< HEAD
         return print_typed_column<col_type>(column, min_printing_width);
+=======
+      std::cout << (int) h_data[i] << "\t";
+>>>>>>> felipeblazing-cudf/feature/adding-string-types
     }
 };
 
