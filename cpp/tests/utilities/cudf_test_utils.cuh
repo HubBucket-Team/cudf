@@ -88,7 +88,7 @@ void print_typed_column(
       std::cout << std::setw(min_printing_width);
       if ((validity_mask == nullptr) or gdf_is_valid(h_mask.data(), i))
       {
-          std::cout << static_cast< detail::promoted_for_printing_t<col_type> >(h_data[i]);
+          std::cout << static_cast< detail::promoted_for_printing_t<col_type> >(h_data[i]) << "\t";
       }
       else {
           std::cout << null_representative;
@@ -114,11 +114,7 @@ struct column_printer {
     template <typename col_type>
     void operator()(const gdf_column& column, unsigned min_printing_width = 1)
     {
-<<<<<<< HEAD
         return print_typed_column<col_type>(column, min_printing_width);
-=======
-      std::cout << (int) h_data[i] << "\t";
->>>>>>> felipeblazing-cudf/feature/adding-string-types
     }
 };
 

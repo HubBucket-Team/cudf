@@ -119,7 +119,8 @@ TEST_F(NVCategoryTest, TEST_NVCATEGORY_SORTING)
 	cudaMemset(asc_desc,minus_one,1);
 
 	//doesnt output nvcategory type columns so works as is
-	gdf_error err = gdf_order_by(input_columns,asc_desc,1,output_column,false);
+	gdf_context ctxt;
+	gdf_error err = gdf_order_by(input_columns,asc_desc,1,output_column,&ctxt);
 
 
 
@@ -304,7 +305,7 @@ TEST_F(NVCategoryTest, TEST_NVCATEGORY_COMPARISON)
 			output_column->valid,
 			100);
 
-	gdf_error err = gpu_comparison(column_left, column_right, output_column,gdf_comparison_operator::GDF_EQUALS);
+	gdf_error err = gdf_comparison(column_left, column_right, output_column,gdf_comparison_operator::GDF_EQUALS);
 
 	std::cout<<err<<std::endl;
 	//    gather_strings( unsigned int* pos, unsigned int elems, bool devmem=true )->;
