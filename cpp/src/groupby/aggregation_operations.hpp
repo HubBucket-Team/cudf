@@ -68,6 +68,32 @@ struct count_op
 };
 
 template<typename value_type>
+struct count_op_distinct   
+{
+  constexpr static value_type IDENTITY{0};
+
+  CUDA_HOST_DEVICE_CALLABLE
+  value_type operator()(value_type new_value, value_type old_value)
+  {
+    return ++old_value;
+  }
+};
+
+
+template<typename value_type>
+struct first_op   
+{
+  constexpr static value_type IDENTITY{0};
+
+  CUDA_HOST_DEVICE_CALLABLE
+  value_type operator()(value_type new_value, value_type old_value)
+  {
+    return ++old_value;
+  }
+};
+
+
+template<typename value_type>
 struct sum_op 
 {
   constexpr static value_type IDENTITY{0};
