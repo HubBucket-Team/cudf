@@ -1047,3 +1047,5 @@ gdf_error gdf_digitize(gdf_column* col,
                        gdf_column* bins,   // same type as col
                        bool right,
                        gdf_index_type out_indices[]);
+
+gdf_error copy_category_from_input_and_compact_into_output(gdf_column * input_column, gdf_column * output_column);
