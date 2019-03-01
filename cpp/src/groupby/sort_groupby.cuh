@@ -92,9 +92,9 @@ gdf_error typed_groupby(size_type num_groupby_cols,
     auto status = cudaMemcpy(data_dev, other->data, allocated_size_data, cudaMemcpyDeviceToDevice);
     assert(status == cudaSuccess);
 
+    RMM_ALLOC((void**)&valid_dev, allocated_size_valid, 0);
     if (other->null_count !=0 && other->valid != nullptr) {
       //FIXME, add RMM_TRY, CUDA_TRY
-      RMM_ALLOC((void**)&valid_dev, allocated_size_valid, 0);
       status = cudaMemcpy(valid_dev, other->valid, allocated_size_valid, cudaMemcpyDeviceToDevice);
       assert(status == cudaSuccess);
     }
@@ -108,7 +108,7 @@ gdf_error typed_groupby(size_type num_groupby_cols,
   // TODO Need to allow for the aggregation output type to be different from the aggregation input type
   aggregation_type * out_agg_col = static_cast<aggregation_type *>(out_aggregation_column->data);
   size_type output_size{0};
-  gdf_error gdf_error_code;
+  gdf_error gdf_error_code = GDF_SUCCESS;
 
   gdf_column *in_agg_copy = nullptr;
 
