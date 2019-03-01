@@ -90,14 +90,14 @@ gdf_error typed_groupby(size_type num_groupby_cols,
     //FIXME, add RMM_TRY, CUDA_TRY
     RMM_ALLOC((void**)&data_dev, allocated_size_data, 0);
     auto status = cudaMemcpy(data_dev, other->data, allocated_size_data, cudaMemcpyDeviceToDevice);
-    if(status != cudaSuccess);
+    if(status != cudaSuccess)
       throw std::runtime_error("cudaMemcpy error");
     
     RMM_ALLOC((void**)&valid_dev, allocated_size_valid, 0);
     if (other->null_count !=0 && other->valid != nullptr) {
       //FIXME, add RMM_TRY, CUDA_TRY
       status = cudaMemcpy(valid_dev, other->valid, allocated_size_valid, cudaMemcpyDeviceToDevice);
-      if(status != cudaSuccess);
+      if(status != cudaSuccess)
         throw std::runtime_error("cudaMemcpy error");
     }
     gdf_column_view_augmented(response, data_dev, valid_dev, other->size, other->dtype, other->null_count);

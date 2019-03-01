@@ -443,70 +443,70 @@ TYPED_TEST(GroupTest, GroupbyExampleTest)
     this->compare_gdf_result(reference_map);
 }
 
-TYPED_TEST(GroupTest, AllKeysSame)
-{
-    const size_t num_keys = 1;
-    const size_t num_values_per_key = 1<<14;
-    const size_t max_key = num_keys*2;
-    const size_t max_val = 1000;
-    this->create_input(num_keys, num_values_per_key, max_key, max_val);
-    auto reference_map = this->compute_reference_solution();
-    this->create_gdf_output_buffers(num_keys, num_values_per_key);
-    this->compute_gdf_result();
-    this->compare_gdf_result(reference_map);
-}
+// TYPED_TEST(GroupTest, AllKeysSame)
+// {
+//     const size_t num_keys = 1;
+//     const size_t num_values_per_key = 1<<14;
+//     const size_t max_key = num_keys*2;
+//     const size_t max_val = 1000;
+//     this->create_input(num_keys, num_values_per_key, max_key, max_val);
+//     auto reference_map = this->compute_reference_solution();
+//     this->create_gdf_output_buffers(num_keys, num_values_per_key);
+//     this->compute_gdf_result();
+//     this->compare_gdf_result(reference_map);
+// }
 
-TYPED_TEST(GroupTest, AllKeysDifferent)
-{
-    const size_t num_keys = 1<<14;
-    const size_t num_values_per_key = 1;
-    const size_t max_key = num_keys*2;
-    const size_t max_val = 1000;
-    this->create_input(num_keys, num_values_per_key, max_key, max_val);
-    auto reference_map = this->compute_reference_solution();
-    this->create_gdf_output_buffers(num_keys, num_values_per_key);
-    this->compute_gdf_result();
-    this->compare_gdf_result(reference_map);
-}
+// TYPED_TEST(GroupTest, AllKeysDifferent)
+// {
+//     const size_t num_keys = 1<<14;
+//     const size_t num_values_per_key = 1;
+//     const size_t max_key = num_keys*2;
+//     const size_t max_val = 1000;
+//     this->create_input(num_keys, num_values_per_key, max_key, max_val);
+//     auto reference_map = this->compute_reference_solution();
+//     this->create_gdf_output_buffers(num_keys, num_values_per_key);
+//     this->compute_gdf_result();
+//     this->compare_gdf_result(reference_map);
+// }
 
-TYPED_TEST(GroupTest, WarpKeysSame)
-{
-    const size_t num_keys = 1<<10;
-    const size_t num_values_per_key = 32;
-    const size_t max_key = num_keys*2;
-    const size_t max_val = 1000;
-    this->create_input(num_keys, num_values_per_key, max_key, max_val);
-    auto reference_map = this->compute_reference_solution();
-    this->create_gdf_output_buffers(num_keys, num_values_per_key);
-    this->compute_gdf_result();
-    this->compare_gdf_result(reference_map);
-}
+// TYPED_TEST(GroupTest, WarpKeysSame)
+// {
+//     const size_t num_keys = 1<<10;
+//     const size_t num_values_per_key = 32;
+//     const size_t max_key = num_keys*2;
+//     const size_t max_val = 1000;
+//     this->create_input(num_keys, num_values_per_key, max_key, max_val);
+//     auto reference_map = this->compute_reference_solution();
+//     this->create_gdf_output_buffers(num_keys, num_values_per_key);
+//     this->compute_gdf_result();
+//     this->compare_gdf_result(reference_map);
+// }
 
-TYPED_TEST(GroupTest, BlockKeysSame)
-{
-    const size_t num_keys = 1<<10;
-    const size_t num_values_per_key = 256;
-    const size_t max_key = num_keys*2;
-    const size_t max_val = 1000;
-    this->create_input(num_keys, num_values_per_key, max_key, max_val);
-    auto reference_map = this->compute_reference_solution();
-    this->create_gdf_output_buffers(num_keys, num_values_per_key);
-    this->compute_gdf_result();
-    this->compare_gdf_result(reference_map);
-}
+// TYPED_TEST(GroupTest, BlockKeysSame)
+// {
+//     const size_t num_keys = 1<<10;
+//     const size_t num_values_per_key = 256;
+//     const size_t max_key = num_keys*2;
+//     const size_t max_val = 1000;
+//     this->create_input(num_keys, num_values_per_key, max_key, max_val);
+//     auto reference_map = this->compute_reference_solution();
+//     this->create_gdf_output_buffers(num_keys, num_values_per_key);
+//     this->compute_gdf_result();
+//     this->compare_gdf_result(reference_map);
+// }
 
-TYPED_TEST(GroupTest, EmptyInput)
-{
-    const size_t num_keys = 0;
-    const size_t num_values_per_key = 0;
-    const size_t max_key = 0;
-    const size_t max_val = 0;
-    this->create_input(num_keys, num_values_per_key, max_key, max_val);
-    auto reference_map = this->compute_reference_solution();
-    this->create_gdf_output_buffers(num_keys, num_values_per_key);
-    this->compute_gdf_result();
-    this->compare_gdf_result(reference_map);
-}
+// TYPED_TEST(GroupTest, EmptyInput)
+// {
+//     const size_t num_keys = 0;
+//     const size_t num_values_per_key = 0;
+//     const size_t max_key = 0;
+//     const size_t max_val = 0;
+//     this->create_input(num_keys, num_values_per_key, max_key, max_val);
+//     auto reference_map = this->compute_reference_solution();
+//     this->create_gdf_output_buffers(num_keys, num_values_per_key);
+//     this->compute_gdf_result();
+//     this->compare_gdf_result(reference_map);
+// }
 
 // Create a new derived class from JoinTest so we can do a new Typed Test set of tests
 template <class test_parameters>
