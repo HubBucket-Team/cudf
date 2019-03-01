@@ -40,7 +40,8 @@ namespace{
       GDF_REQUIRE(required_size == cols[i]->size, GDF_COLUMN_SIZE_MISMATCH );
 
       // TODO Remove when null support for hash-based groupby is added
-      GDF_REQUIRE(nullptr == cols[i]->valid || 0 == cols[i]->null_count, GDF_VALIDITY_UNSUPPORTED);
+      // FIXME: @alex use groupby_sort
+      // GDF_REQUIRE(nullptr == cols[i]->valid || 0 == cols[i]->null_count, GDF_VALIDITY_UNSUPPORTED);
     }
     return GDF_SUCCESS;
   }

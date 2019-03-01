@@ -89,12 +89,14 @@ gdf_error typed_groupby(size_type num_groupby_cols,
     
     //FIXME, add RMM_TRY, CUDA_TRY
     RMM_ALLOC((void**)&data_dev, allocated_size_data, 0);
-    cudaMemcpy(data_dev, other->data, allocated_size_data, cudaMemcpyDeviceToDevice);
+    auto status = cudaMemcpy(data_dev, other->data, allocated_size_data, cudaMemcpyDeviceToDevice);
+    assert(status == cudaSuccess);
 
-    if (other->valid != nullptr) {
+    if (other->null_count !=0 && other->valid != nullptr) {
       //FIXME, add RMM_TRY, CUDA_TRY
       RMM_ALLOC((void**)&valid_dev, allocated_size_valid, 0);
-      cudaMemcpy(valid_dev, other->valid, allocated_size_valid, cudaMemcpyDeviceToDevice);
+      status = cudaMemcpy(valid_dev, other->valid, allocated_size_valid, cudaMemcpyDeviceToDevice);
+      assert(status == cudaSuccess);
     }
     gdf_column_view_augmented(response, data_dev, valid_dev, other->size, other->dtype, other->null_count);
     return response;
@@ -119,7 +121,7 @@ gdf_error typed_groupby(size_type num_groupby_cols,
       auto in_groupby_columns_with_agg = orderby_cols_vect.data();
 
       // run order by and get new sort indexes (sort all columns including agg_in)
-      status = gdf_order_by(&orderby_cols_vect[0],             //input columns
+      status = gdf_order_by(in_groupby_columns_with_agg,             //input columns
                               nullptr,
                               num_groupby_cols + 1,            //number of columns in the first parameter (e.g. number of columsn to sort by)
                               &sorted_indices_col,             //a gdf_column that is pre allocated for storing sorted indices

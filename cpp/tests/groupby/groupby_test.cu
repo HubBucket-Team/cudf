@@ -233,10 +233,36 @@ struct GroupTest : public GdfTest {
       gdf_raw_output_val_column = gdf_output_value_column.get();
   }
 
+
+  int64_t hash_tuple_and_agg_val (const tuple_t& key, output_t &agg_val) {
+    int64_t hash_output = (int64_t)agg_val;
+
+    tuple_each(key, [&hash_output](auto& lower_part) {
+      hash_output = lower_part + 0x9e3779b9 + (hash_output << 6) + (hash_output >> 2);
+
+    });
+    return hash_output;
+  }
+
   map_t
   compute_reference_solution(void) {
       map_t key_val_map;
-      if (test_parameters::op != agg_op::AVG) {
+      if (test_parameters::op == agg_op::CNT_DISTINCT) {
+        AggOp<test_parameters::op> agg;
+        std::set<int64_t> uniques;          
+        for (size_t i = 0; i < input_value.size(); ++i) {
+            auto l_key = extractKey(input_key, i);
+            //create a has based on input l_key and input_value[i]
+            int64_t hash_val =  hash_tuple_and_agg_val(l_key, input_value[i]);
+            if (uniques.find(hash_val) != uniques.end()) {
+              auto sch = key_val_map.find(l_key);
+              key_val_map[l_key] = agg(sch->second, input_value[i]);
+            } else {
+                key_val_map[l_key] = agg(input_value[i]);
+            }
+            uniques.insert(hash_val);
+        }
+      } else if (test_parameters::op != agg_op::AVG) {
           AggOp<test_parameters::op> agg;
           for (size_t i = 0; i < input_value.size(); ++i) {
               auto l_key = extractKey(input_key, i);
@@ -264,6 +290,14 @@ struct GroupTest : public GdfTest {
               e.second = e.second/counters[e.first];
           }
       }
+      std::stringstream ss;
+      ss << "reference solution:\n";
+      for(auto &iter : key_val_map) {
+          print_tuple_value(ss, iter.first);
+          ss << " => " <<  iter.second << std::endl;
+      }
+      std::cout << ss.str() << std::endl;
+      
       return key_val_map;
   }
 
@@ -331,6 +365,17 @@ struct GroupTest : public GdfTest {
                                    &ctxt);
           break;
         }
+      case agg_op::CNT_DISTINCT:
+        {
+          error = gdf_group_by_count_distinct(num_columns,
+                                   group_by_input_key,
+                                   group_by_input_value,
+                                   nullptr,
+                                   group_by_output_key,
+                                   group_by_output_value,
+                                   &ctxt);
+          break;
+        }  
       case agg_op::AVG:
         {
           error = gdf_group_by_avg(num_columns,
@@ -351,6 +396,14 @@ struct GroupTest : public GdfTest {
         copy_output(
                 group_by_output_key, output_key,
                 group_by_output_value, output_value);
+
+        bool print = true;
+        if (print) {
+          std::cout << "\nGDF: Key column(s) created. Size: " << std::get<0>(output_key).size() << std::endl;
+          print_tuple_vector(output_key);
+          std::cout << "GDF: Value column(s) created. Size: " << output_value.size() << std::endl;
+          print_vector(output_value);
+        }
     }
   }
 
