@@ -74,7 +74,7 @@ typedef struct raw_csv_ {
     char *				data;			// on-device: the raw unprocessed CSV data - loaded as a large char * array
     cu_recstart_t*		recStart;		// on-device: Starting position of the records.
 
-    ParseOptions        opts;			// host: options to control parsing behavior
+    ParseOptions        opts;			// options to control parsing behavior
 
     long				num_bytes;		// host: the number of bytes in the data
     long				num_bits;		// host: the number of 64-bit bitmaps (different than valid)
@@ -97,8 +97,8 @@ typedef struct raw_csv_ {
     std::vector<char> header;       ///< host: Header row data, for parsing column names
     string prefix;                  ///< host: Prepended to column ID if there is no header or input column names
 
-    rmm::device_vector<int32_t>	d_trueValues;		// device: array of values to recognize as true
-    rmm::device_vector<int32_t>	d_falseValues;		// device: array of values to recognize as false
+    rmm::device_vector<SerialTrieNode>	d_trueTrie;	// device: serialized trie of values to recognize as true
+    rmm::device_vector<SerialTrieNode>	d_falseTrie;// device: serialized trie of values to recognize as false
     rmm::device_vector<SerialTrieNode>	d_naTrie;	// device: serialized trie of NA values
 } raw_csv_t;
 
@@ -149,7 +149,7 @@ __global__ void storeRecordStart(char *data, size_t chunk_offset,
 	cu_recstart_t* recStart);
 __global__ void convertCsvToGdf(char *csv, const ParseOptions opts,
 	gdf_size_type num_records, int num_columns, bool *parseCol,
-	cu_recstart_t *recStart, gdf_dtype *dtype, SerialTrieNode *na_trie, void **gdf_data, gdf_valid_type **valid,
+	cu_recstart_t *recStart, gdf_dtype *dtype, void **gdf_data, gdf_valid_type **valid,
 	string_pair **str_cols, unsigned long long *num_valid);
 __global__ void dataTypeDetection(char *raw_csv, const ParseOptions opts,
 	gdf_size_type num_records, int num_columns, bool *parseCol,
@@ -158,8 +158,8 @@ __global__ void dataTypeDetection(char *raw_csv, const ParseOptions opts,
 //
 //---------------CUDA Valid (8 blocks of 8-bits) Bitmap Kernels ---------------------------------------------
 //
-__device__ int whichBitmap(int record) { return (record/8);  }
-__device__ int whichBit(int bit) { return (bit % 8);  }
+__device__ long whichBitmap(long record) { return (record/8);  }
+__device__ int whichBit(long record) { return (record % 8);  }
 
 __inline__ __device__ void validAtomicOR(gdf_valid_type* address, gdf_valid_type val)
 {
@@ -295,7 +295,7 @@ gdf_error read_csv(csv_read_arg *args)
 	//-----------------------------------------------------------------------------
 	// create the CSV data structure - this will be filled in as the CSV data is processed.
 	// Done first to validate data types
-	raw_csv_t * raw_csv = new raw_csv_t;
+	raw_csv_t * raw_csv = new raw_csv_t();
 	// error = parseArguments(args, raw_csv);
 	raw_csv->num_actual_cols	= args->num_cols;
 	raw_csv->num_active_cols	= args->num_cols;
@@ -359,22 +359,23 @@ gdf_error read_csv(csv_read_arg *args)
 
 	// Handle user-defined booleans values, whereby field data is substituted
 	// with true/false values; CUDF booleans are int types of 0 or 1
-	// The true/false value strings are converted to integers which are used
-	// by the data conversion kernel for comparison and value replacement
-	if ((args->true_values != NULL) && (args->num_true_values > 0)) {
-		thrust::host_vector<int32_t> h_values(args->num_true_values);
+	vector<string> true_values{"True", "TRUE"};
+	if (args->true_values != nullptr && args->num_true_values > 0) {
 		for (int i = 0; i < args->num_true_values; ++i) {
-			h_values[i] = convertStrToValue<int32_t>(args->true_values[i], 0, strlen(args->true_values[i]) - 1, raw_csv->opts);
+			true_values.emplace_back(args->true_values[i]);
 		}
-		raw_csv->d_trueValues = h_values;
 	}
-	if ((args->false_values != NULL) && (args->num_false_values > 0)) {
-		thrust::host_vector<int32_t> h_values(args->num_false_values);
+	raw_csv->d_trueTrie = createSerializedTrie(true_values);
+	raw_csv->opts.trueValuesTrie = raw_csv->d_trueTrie.data().get();
+
+	vector<string> false_values{"False", "FALSE"};
+	if (args->false_values != nullptr && args->num_false_values > 0) {
 		for (int i = 0; i < args->num_false_values; ++i) {
-			h_values[i] = convertStrToValue<int32_t>(args->false_values[i], 0, strlen(args->false_values[i]) - 1, raw_csv->opts);
+			false_values.emplace_back(args->false_values[i]);
 		}
-		raw_csv->d_falseValues = h_values;
 	}
+	raw_csv->d_falseTrie = createSerializedTrie(false_values);
+	raw_csv->opts.falseValuesTrie = raw_csv->d_falseTrie.data().get();
 
 	if (args->na_filter && 
 		(args->keep_default_na || (args->na_values != nullptr && args->num_na_values > 0))) {
@@ -394,12 +395,8 @@ gdf_error read_csv(csv_read_arg *args)
 		}
 
 		raw_csv->d_naTrie = createSerializedTrie(na_values);
+		raw_csv->opts.naValuesTrie = raw_csv->d_naTrie.data().get();
 	}
-
-	raw_csv->opts.trueValues       = raw_csv->d_trueValues.data().get();
-	raw_csv->opts.trueValuesCount  = raw_csv->d_trueValues.size();
-	raw_csv->opts.falseValues      = raw_csv->d_falseValues.data().get();
-	raw_csv->opts.falseValuesCount = raw_csv->d_falseValues.size();
 
 	//-----------------------------------------------------------------------------
 	// memory map in the data
@@ -418,9 +415,13 @@ gdf_error read_csv(csv_read_arg *args)
 		const auto file_size = st.st_size;
 		const auto page_size = sysconf(_SC_PAGESIZE);
 
+		if (args->byte_range_offset >= (size_t)file_size) { 
+			close(fd); 
+			checkError(GDF_INVALID_API_CALL, "The byte_range offset is larger than the file size");
+		}
+
 		// Have to align map offset to page size
 		map_offset = (args->byte_range_offset/page_size)*page_size;
-		if (map_offset >= (size_t)file_size) { close(fd); checkError(GDF_C_ERROR, "The offset is too high"); }
 
 		// Set to rest-of-the-file size, will reduce based on the byte range size
 		raw_csv->num_bytes = map_size = file_size - map_offset;
@@ -432,9 +433,11 @@ gdf_error read_csv(csv_read_arg *args)
 		if (raw_csv->byte_range_size != 0 && padded_byte_range_size < map_size) {
 			// Need to make sure that w/ padding we don't overshoot the end of file
 			map_size = min(padded_byte_range_size + calculateMaxRowSize(args->num_cols), map_size);
-			// Ignore page padding for parsing purposes
-			raw_csv->num_bytes = map_size - page_padding;
+
 		}
+
+		// Ignore page padding for parsing purposes
+		raw_csv->num_bytes = map_size - page_padding;
 
 		map_data = mmap(0, map_size, PROT_READ, MAP_PRIVATE, fd, map_offset);
 	
@@ -446,11 +449,6 @@ gdf_error read_csv(csv_read_arg *args)
 		raw_csv->num_bytes = map_size = args->buffer_size;
 	}
 	else { checkError(GDF_C_ERROR, "invalid input type"); }
-
-	// Reset the byte range size if useless
-	if (raw_csv->byte_range_size >= raw_csv->num_bytes) {
-		raw_csv->byte_range_size = 0;
-	}
 
 	const char* h_uncomp_data;
 	size_t h_uncomp_size = 0;
@@ -759,21 +757,24 @@ gdf_error read_csv(csv_read_arg *args)
 		memcpy(gdf->col_name, str.c_str(), len);
 		gdf->col_name[len -1] = '\0';
 
-		allocateGdfDataSpace(gdf);
+		error = allocateGdfDataSpace(gdf);
+		if (error != GDF_SUCCESS) {
+			return error;
+		}
 
 		cols[col] 		= gdf;
 		h_dtypes[col] 	= gdf->dtype;
 		h_data[col] 	= gdf->data;
-		h_valid[col] 	= gdf->valid;	
+		h_valid[col] 	= gdf->valid;
     }
 
 	CUDA_TRY( cudaMemcpy(d_dtypes,h_dtypes, sizeof(gdf_dtype) * (raw_csv->num_active_cols), cudaMemcpyHostToDevice));
 	CUDA_TRY( cudaMemcpy(d_data,h_data, sizeof(void*) * (raw_csv->num_active_cols), cudaMemcpyHostToDevice));
 	CUDA_TRY( cudaMemcpy(d_valid,h_valid, sizeof(gdf_valid_type*) * (raw_csv->num_active_cols), cudaMemcpyHostToDevice));
 
-	free(h_dtypes); 
-	free(h_valid); 
-	free(h_data); 
+	free(h_dtypes);
+	free(h_valid);
+	free(h_data);
 
 	if (raw_csv->num_records != 0) {
 		error = launch_dataConvertColumns(raw_csv, d_data, d_valid, d_dtypes, d_str_cols, d_valid_count);
@@ -781,7 +782,7 @@ gdf_error read_csv(csv_read_arg *args)
 			return error;
 		}
 		// Sync with the default stream, just in case create_from_index() is asynchronous 
-		cudaStreamSynchronize(0);
+		CUDA_TRY(cudaStreamSynchronize(0));
 
 		stringColCount=0;
 		for (int col = 0; col < raw_csv->num_active_cols; col++) {
@@ -1050,14 +1051,9 @@ gdf_error uploadDataToDevice(const char *h_uncomp_data, size_t h_uncomp_size,
                     thrust::make_constant_iterator(start_offset),
                     raw_csv->recStart, thrust::minus<cu_recstart_t>());
 
-  // We added extra for offset=0 position - remove for actual data row count
-  if (raw_csv->byte_range_offset == 0) {
-    raw_csv->num_records--;
-  }
-  // We kept extra for end offset - remove for actual data row count
-  if (raw_csv->byte_range_size != 0) {
-    raw_csv->num_records--;
-  }
+  // The array of row offsets includes EOF
+  // reduce the number of records by one to exclude it from the row count
+  raw_csv->num_records--;
 
   return GDF_SUCCESS;
 }
@@ -1192,17 +1188,11 @@ __global__ void countRecords(char *data, const char terminator, const char quote
 	// process the data
 	cu_reccnt_t tokenCount = 0;
 	for (long x = 0; x < byteToProcess; x++) {
-		
 		// Scan and log records. If quotations are enabled, then also log quotes
 		// for a postprocess ignore, as the chunk here has limited visibility.
 		if ((raw[x] == terminator) || (quotechar != '\0' && raw[x] == quotechar)) {
 			tokenCount++;
-		} else if (terminator == '\n' && (x + 1L) < byteToProcess && 
-		           raw[x] == '\r' && raw[x + 1L] == '\n') {
-			x++;
-			tokenCount++;
 		}
-
 	}
 	atomicAdd(num_records, tokenCount);
 }
@@ -1251,8 +1241,8 @@ gdf_error launch_storeRecordStart(const char *h_data, size_t h_size,
 		// include_first_row should only apply to the first chunk
 		const bool cu_include_first_row = (ci == 0) && (csvData->byte_range_offset == 0);
 		
-		// Copy chunk to device. Copy extra byte if not last chunk
-		CUDA_TRY(cudaMemcpy(d_chunk, h_chunk, ci < (chunk_count - 1)?chunk_bytes:chunk_bytes + 1, cudaMemcpyDefault));
+		// Copy chunk to device
+		CUDA_TRY(cudaMemcpy(d_chunk, h_chunk, chunk_bytes, cudaMemcpyDefault));
 
 		const int gridSize = (chunk_bits + blockSize - 1) / blockSize;
 		storeRecordStart <<< gridSize, blockSize >>> (
@@ -1316,22 +1306,12 @@ __global__ void storeRecordStart(char *data, size_t chunk_offset,
 
 	// process the data
 	for (long x = 0; x < byteToProcess; x++) {
-
 		// Scan and log records. If quotations are enabled, then also log quotes
 		// for a postprocess ignore, as the chunk here has limited visibility.
 		if ((raw[x] == terminator) || (quotechar != '\0' && raw[x] == quotechar)) {
-
-			const auto pos = atomicAdd(num_records, 1ull);
-			recStart[pos] = did + chunk_offset + x + 1;
-
-		} else if (terminator == '\n' && (x + 1L) < byteToProcess && 
-				   raw[x] == '\r' && raw[x + 1L] == '\n') {
-
-			x++;
 			const auto pos = atomicAdd(num_records, 1ull);
 			recStart[pos] = did + chunk_offset + x + 1;
 		}
-
 	}
 }
 
@@ -1362,8 +1342,7 @@ gdf_error launch_dataConvertColumns(raw_csv_t *raw_csv, void **gdf,
   convertCsvToGdf <<< gridSize, blockSize >>> (
       raw_csv->data, raw_csv->opts, raw_csv->num_records,
       raw_csv->num_actual_cols, raw_csv->d_parseCol, raw_csv->recStart,
-      d_dtypes,
-      raw_csv->d_naTrie.empty() ? nullptr : raw_csv->d_naTrie.data().get(), gdf,
+      d_dtypes, gdf,
       valid, str_cols, num_valid);
 
   CUDA_TRY(cudaGetLastError());
@@ -1393,9 +1372,10 @@ struct ConvertFunctor {
 
     // Check for user-specified true/false values where the output is
     // replaced with 1/0 respectively
-    if (isBooleanValue(value, opts.trueValues, opts.trueValuesCount)) {
+    const size_t field_len = end - start + 1;
+    if (serializedTrieContains(opts.trueValuesTrie, csvData + start, field_len)) {
       value = 1;
-    } else if (isBooleanValue(value, opts.falseValues, opts.falseValuesCount)) {
+    } else if (serializedTrieContains(opts.falseValuesTrie, csvData + start, field_len)) {
       value = 0;
     }
   }
@@ -1488,7 +1468,6 @@ void convertCsvToGdf(char *raw_csv,
                      bool *parseCol,
                      cu_recstart_t *recStart,
                      gdf_dtype *dtype,
-                     SerialTrieNode* na_trie,
                      void **gdf_data,
                      gdf_valid_type **valid,
                      string_pair **str_cols,
@@ -1519,7 +1498,7 @@ void convertCsvToGdf(char *raw_csv,
 		if(parseCol[col]==true){
 
 			// check if the entire field is a NaN string - consistent with pandas
-			const bool is_na = (na_trie == nullptr) ? false : serializedTrieContains(na_trie, raw_csv + start, pos - start);
+			const bool is_na = serializedTrieContains(opts.naValuesTrie, raw_csv + start, pos - start);
 
 			// Modify start & end to ignore whitespace and quotechars
 			long tempPos=pos-1;
@@ -1548,8 +1527,8 @@ void convertCsvToGdf(char *raw_csv,
 				}
 
 				// set the valid bitmap - all bits were set to 0 to start
-				int bitmapIdx 	= whichBitmap(rec_id);  	// which bitmap
-				int bitIdx		= whichBit(rec_id);		// which bit - over an 8-bit index
+				long bitmapIdx 	= whichBitmap(rec_id);  	// which bitmap
+				long bitIdx		= whichBit(rec_id);		// which bit - over an 8-bit index
 				setBit(valid[actual_col]+bitmapIdx, bitIdx);		// This is done with atomics
 
 				atomicAdd((unsigned long long int*)&num_valid[actual_col],(unsigned long long int)1);
@@ -1595,21 +1574,35 @@ gdf_error launch_dataTypeDetection(raw_csv_t *raw_csv,
   return GDF_SUCCESS;
 }
 
+/**
+* @brief Returns true is the input character is a valid digit.
+* Supports both decimal and hexadecimal digits (uppercase and lowercase).
+*/
+__device__ __forceinline__
+bool isDigit(char c, bool is_hex){
+	if (c >= '0' && c <= '9') return true;
+	if (is_hex) {
+		if (c >= 'A' && c <= 'F') return true;
+		if (c >= 'a' && c <= 'f') return true;
+	}
+	return false;
+}
+
 /**---------------------------------------------------------------------------*
  * @brief CUDA kernel that parses and converts CSV data into cuDF column data.
  *
  * Data is processed in one row/record at a time, so the number of total
  * threads (tid) is equal to the number of rows.
  *
- * @Param[in] raw_csv The entire CSV data to read
- * @Param[in] opts A set of parsing options
- * @Param[in] num_records The number of lines/rows of CSV data
- * @Param[in] num_columns The number of columns of CSV data
- * @Param[in] parseCol Whether to parse or skip a column
- * @Param[in] recStart The start the CSV data of interest
- * @Param[out] d_columnData The count for each column data type
+ * @param[in] raw_csv The entire CSV data to read
+ * @param[in] opts A set of parsing options
+ * @param[in] num_records The number of lines/rows of CSV data
+ * @param[in] num_columns The number of columns of CSV data
+ * @param[in] parseCol Whether to parse or skip a column
+ * @param[in] recStart The start the CSV data of interest
+ * @param[out] d_columnData The count for each column data type
  *
- * @Returns GDF_SUCCESS upon successful computation
+ * @returns GDF_SUCCESS upon successful computation
  *---------------------------------------------------------------------------**/
 __global__
 void dataTypeDetection(char *raw_csv,
@@ -1668,10 +1661,13 @@ void dataTypeDetection(char *raw_csv,
 			// This could possibly result in additional empty fields
 			adjustForWhitespaceAndQuotes(raw_csv, &start, &tempPos);
 
-			long strLen=tempPos-start+1;
+			const long strLen = tempPos - start + 1;
+
+			const bool maybe_hex = ((strLen > 2 && raw_csv[start] == '0' && raw_csv[start + 1] == 'x') ||
+				(strLen > 3 && raw_csv[start] == '-' && raw_csv[start + 1] == '0' && raw_csv[start + 2] == 'x'));
 
 			for(long startPos=start; startPos<=tempPos; startPos++){
-				if(raw_csv[startPos]>= '0' && raw_csv[startPos] <= '9'){
+				if(isDigit(raw_csv[startPos], maybe_hex)){
 					countNumber++;
 					continue;
 				}
@@ -1691,17 +1687,27 @@ void dataTypeDetection(char *raw_csv,
 				}
 			}
 
+			// Integers have to have the length of the string
+			long int_req_number_cnt = strLen;
+			// Off by one if they start with a minus sign
+			if(raw_csv[start]=='-' && strLen > 1){
+				--int_req_number_cnt;
+			}
+			// Off by one if they are a hexadecimal number
+			if(maybe_hex) {
+				--int_req_number_cnt;
+			}
+
 			if(strLen==0){ // Removed spaces ' ' in the pre-processing and thus we can have an empty string.
 				atomicAdd(& d_columnData[actual_col].countNULL, 1L);
 			}
-			// Integers have to have the length of the string or can be off by one if they start with a minus sign
-			else if(countNumber==(strLen) || ( strLen>1 && countNumber==(strLen-1) && raw_csv[start]=='-') ){
+			else if(countNumber==int_req_number_cnt){
 				// Checking to see if we the integer value requires 8,16,32,64 bits.
 				// This will allow us to allocate the exact amount of memory.
 				const auto value = convertStrToValue<int64_t>(raw_csv, start, tempPos, opts);
-
-				if (isBooleanValue<int32_t>(value, opts.trueValues, opts.trueValuesCount) ||
-					isBooleanValue<int32_t>(value, opts.falseValues, opts.falseValuesCount)){
+				const size_t field_len = tempPos - start + 1;
+				if (serializedTrieContains(opts.trueValuesTrie, raw_csv + start, field_len) ||
+					serializedTrieContains(opts.falseValuesTrie, raw_csv + start, field_len)){
 					atomicAdd(& d_columnData[actual_col].countInt8, 1L);
 				}
 				else if(value >= (1L<<31)){

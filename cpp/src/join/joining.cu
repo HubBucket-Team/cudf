@@ -25,6 +25,7 @@
 #include "dataframe/cudf_table.cuh"
 #include "utilities/nvtx/nvtx_utils.h"
 #include "string/nvcategory_util.cuh"
+#include <NVCategory.h>
 
 #include "joining.h"
 
@@ -37,17 +38,17 @@ constexpr output_index_type MAX_JOIN_SIZE{std::numeric_limits<output_index_type>
 
 /* --------------------------------------------------------------------------*/
 /** 
- * @Synopsis Computes the Join result between two tables using the hash-based implementation. 
+ * @brief Computes the Join result between two tables using the hash-based implementation. 
  * 
- * @Param num_cols The number of columns to join
- * @Param leftcol The left set of columns to join
- * @Param rightcol The right set of columns to join
- * @Param l_result The join computed indices of the left table
- * @Param r_result The join computed indices of the right table
+ * @param num_cols The number of columns to join
+ * @param leftcol The left set of columns to join
+ * @param rightcol The right set of columns to join
+ * @param l_result The join computed indices of the left table
+ * @param r_result The join computed indices of the right table
  * @tparam join_type The type of join to be performed
  * @tparam size_type The data type used for size calculations
  * 
- * @Returns Upon successful computation, returns GDF_SUCCESS. Otherwise returns appropriate error code 
+ * @returns Upon successful computation, returns GDF_SUCCESS. Otherwise returns appropriate error code 
  */
 /* ----------------------------------------------------------------------------*/
 template <JoinType join_type, 
@@ -122,18 +123,18 @@ gdf_error sort_join_typed(gdf_column *leftcol, gdf_column *rightcol,
 
 /* --------------------------------------------------------------------------*/
 /** 
- * @Synopsis  Computes the join operation between a single left and single right column
+ * @brief  Computes the join operation between a single left and single right column
  using the sort based implementation.
  * 
- * @Param leftcol The left column to join
- * @Param rightcol The right column to join
- * @Param left_result The join computed indices of the left table
- * @Param right_result The join computed indices of the right table
- * @Param ctxt Structure that determines various run parameters, such as if the inputs
+ * @param leftcol The left column to join
+ * @param rightcol The right column to join
+ * @param left_result The join computed indices of the left table
+ * @param right_result The join computed indices of the right table
+ * @param ctxt Structure that determines various run parameters, such as if the inputs
  are already sorted.
    @tparama join_type The type of join to perform
  * 
- * @Returns GDF_SUCCESS upon succesful completion of the join, otherwise returns 
+ * @returns GDF_SUCCESS upon succesful completion of the join, otherwise returns 
  appropriate error code.
  */
 /* ----------------------------------------------------------------------------*/
@@ -170,11 +171,11 @@ gdf_error sort_join<JoinType::LEFT_JOIN>(gdf_column *leftcol, gdf_column *rightc
 
 /* --------------------------------------------------------------------------*/
 /**
-* @Synopsis  Allocates a buffer and fills it with a repeated value
+* @brief  Allocates a buffer and fills it with a repeated value
 *
-* @Param buffer Address of the buffer to be allocated
-* @Param buffer_length Amount of memory to be allocated
-* @Param value The value to be filled into the buffer
+* @param buffer Address of the buffer to be allocated
+* @param buffer_length Amount of memory to be allocated
+* @param value The value to be filled into the buffer
 * @tparam data_type The data type to be used for the buffer
 * @tparam size_type The data type used for size calculations
 */
@@ -192,10 +193,10 @@ gdf_error allocValueBuffer(data_type ** buffer,
 
 /* --------------------------------------------------------------------------*/
 /**
-* @Synopsis  Allocates a buffer and fills it with a sequence
+* @brief  Allocates a buffer and fills it with a sequence
 *
-* @Param buffer Address of the buffer to be allocated
-* @Param buffer_length Amount of memory to be allocated
+* @param buffer Address of the buffer to be allocated
+* @param buffer_length Amount of memory to be allocated
 * @tparam data_type The data type to be used for the buffer
 * @tparam size_type The data type used for size calculations
 */
@@ -212,17 +213,17 @@ gdf_error allocSequenceBuffer(data_type ** buffer,
 
 /* --------------------------------------------------------------------------*/
 /** 
- * @Synopsis  Trivially computes full join of two tables if one of the tables
+ * @brief  Trivially computes full join of two tables if one of the tables
  are empty
  * 
- * @Param left_size The size of the left table
- * @Param right_size The size of the right table
- * @Param rightcol The right set of columns to join
- * @Param left_result The join computed indices of the left table
- * @Param right_result The join computed indices of the right table
+ * @param left_size The size of the left table
+ * @param right_size The size of the right table
+ * @param rightcol The right set of columns to join
+ * @param left_result The join computed indices of the left table
+ * @param right_result The join computed indices of the right table
  * @tparam size_type The data type used for size calculations
  * 
- * @Returns GDF_SUCCESS upon succesfull compute, otherwise returns appropriate error code
+ * @returns GDF_SUCCESS upon succesfull compute, otherwise returns appropriate error code
  */
 /* ----------------------------------------------------------------------------*/
 template<typename size_type>
@@ -266,18 +267,18 @@ gdf_error trivial_full_join(
 
 /* --------------------------------------------------------------------------*/
 /** 
- * @Synopsis  Computes the join operation between two sets of columns
+ * @brief  Computes the join operation between two sets of columns
  * 
- * @Param num_cols The number of columns to join
- * @Param leftcol The left set of columns to join
- * @Param rightcol The right set of columns to join
- * @Param left_result The join computed indices of the left table
- * @Param right_result The join computed indices of the right table
- * @Param join_context A structure that determines various run parameters, such as
+ * @param num_cols The number of columns to join
+ * @param leftcol The left set of columns to join
+ * @param rightcol The right set of columns to join
+ * @param left_result The join computed indices of the left table
+ * @param right_result The join computed indices of the right table
+ * @param join_context A structure that determines various run parameters, such as
    whether to perform a hash or sort based join
  * @tparam join_type The type of join to be performed
  * 
- * @Returns GDF_SUCCESS upon succesfull compute, otherwise returns appropriate error code
+ * @returns GDF_SUCCESS upon succesfull compute, otherwise returns appropriate error code
  */
 /* ----------------------------------------------------------------------------*/
 template <JoinType join_type>
@@ -536,8 +537,9 @@ gdf_error join_call_compute_df(
 
 
   //if the inputs are nvcategory we need to make the dictionaries comparable
-  gdf_column ** new_left_cols = new gdf_column * [num_left_cols];
-  gdf_column ** new_right_cols = new gdf_column * [num_right_cols];
+
+  std::vector<gdf_column *> new_left_cols(num_left_cols);
+  std::vector<gdf_column *> new_right_cols(num_right_cols);
   for(int column_index = 0; column_index < num_left_cols; column_index++){
 	  new_left_cols[column_index] = left_cols[column_index];
   }
@@ -594,8 +596,8 @@ gdf_error join_call_compute_df(
   // I do do not know if this is ok or not, I am chaning the vlaue of left_cols and right_cols to
   //point to columns that may have been updated in case we had columns of type GDF_STRING_CATEGORY
   //I think its fine since its not passed in by reference and we are just pointing this pointer somewehre else
-  left_cols = new_left_cols;
-  right_cols = new_right_cols;
+  left_cols = new_left_cols.data();
+  right_cols = new_right_cols.data();
 
 
   // If index outputs are not requested, create columns to store them
@@ -658,6 +660,30 @@ gdf_error join_call_compute_df(
 
     l_index_temp.reset(nullptr);
     r_index_temp.reset(nullptr);
+
+    //This code is done with the understanding that result columns is
+    //first left columns followed by right.
+
+    for(int output_column_index = 0; output_column_index < result_num_cols; output_column_index++){
+    	gdf_column * original_column;
+    	if(output_column_index < num_left_cols){
+    		original_column = new_left_cols[output_column_index];
+    	}else{
+    		original_column = new_right_cols[output_column_index - num_left_cols];
+    	}
+
+    	if(original_column->dtype == GDF_STRING_CATEGORY){
+    		gdf_error category_error =
+    				copy_category_from_input_and_compact_into_output(
+    				original_column,
+    				result_cols[output_column_index]);
+    	    GDF_REQUIRE(GDF_SUCCESS == category_error, category_error);
+        	NVCategory::destroy(original_column->dtype_info.category);
+        	gdf_column_free(original_column);
+    	}
+
+
+    }
 
     CUDA_CHECK_LAST();
 

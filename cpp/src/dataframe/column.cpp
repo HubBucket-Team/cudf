@@ -24,9 +24,9 @@
 #include "utilities/error_utils.h"
 #include "rmm/rmm.h"
 #include "utilities/type_dispatcher.hpp"
+#include "string/nvcategory_util.cuh"
 #include <cuda_runtime_api.h>
 #include <algorithm>
-#include "string/nvcategory_util.cuh"
 
 // forward decl -- see validops.cu
 gdf_error gdf_mask_concat(gdf_valid_type *output_mask,
@@ -45,8 +45,8 @@ gdf_error gdf_mask_concat(gdf_valid_type *output_mask,
  * @param[out] output_column A column whose buffers are already allocated that
  *             will contain the concatenation of the input columns data and
  *             validity bitmasks
- * @Param[in] columns_to_concat[] The columns to concatenate
- * @Param[in] num_columns The number of columns to concatenate
+ * @param[in] columns_to_concat[] The columns to concatenate
+ * @param[in] num_columns The number of columns to concatenate
  * 
  * @return gdf_error GDF_SUCCESS upon completion; GDF_DATASET_EMPTY if any data
  *         pointer is NULL, GDF_COLUMN_SIZE_MISMATCH if the output column size
@@ -85,8 +85,7 @@ gdf_error gdf_column_concat(gdf_column *output_column, gdf_column *columns_to_co
                   [](gdf_column *col) { return (nullptr != col->valid); })};
 
   GDF_REQUIRE(column_type == output_column->dtype, GDF_DTYPE_MISMATCH);
-  GDF_REQUIRE(output_column->size > total_size, GDF_COLUMN_SIZE_MISMATCH);
-  // sum of the sizes of the input columns must equal output column size
+  GDF_REQUIRE(output_column->size <= total_size, GDF_COLUMN_SIZE_MISMATCH);
 
   // TODO optimizations if needed
   // 1. Either 
@@ -110,12 +109,12 @@ gdf_error gdf_column_concat(gdf_column *output_column, gdf_column *columns_to_co
         output_column->null_count += columns_to_concat[i]->null_count;
     }
   }else{
-	for (int i = 0; i < num_columns; ++i) {
-	  gdf_size_type bytes = column_byte_width * columns_to_concat[i]->size;
-	  CUDA_TRY( cudaMemcpy(target, columns_to_concat[i]->data, bytes, cudaMemcpyDeviceToDevice) );
-      target += bytes;
-      output_column->null_count += columns_to_concat[i]->null_count;
-	}
+	  for (int i = 0; i < num_columns; ++i) {
+	    gdf_size_type bytes = column_byte_width * columns_to_concat[i]->size;
+	    CUDA_TRY( cudaMemcpy(target, columns_to_concat[i]->data, bytes, cudaMemcpyDeviceToDevice) );
+        target += bytes;
+        output_column->null_count += columns_to_concat[i]->null_count;
+	  }
 
   }
   
@@ -203,13 +202,15 @@ gdf_error gdf_column_view_augmented(gdf_column *column,
                                     gdf_valid_type *valid,
 		                                gdf_size_type size,
                                     gdf_dtype dtype,
-                                    gdf_size_type null_count)
+                                    gdf_size_type null_count,
+                                    gdf_dtype_extra_info extra_info)
 {
 	column->data = data;
 	column->valid = valid;
 	column->size = size;
 	column->dtype = dtype;
 	column->null_count = null_count;
+	column->dtype_info = extra_info;
 	return GDF_SUCCESS;
 }
 

@@ -15,7 +15,7 @@ class NVCategory;
 
 /* --------------------------------------------------------------------------*/
  /**
- * @Synopsis  These enums indicate the possible data types for a gdf_column
+ * @brief  These enums indicate the possible data types for a gdf_column
  */
 /* ----------------------------------------------------------------------------*/
 typedef enum {
@@ -38,7 +38,7 @@ typedef enum {
 
 /* --------------------------------------------------------------------------*/
 /**
- * @Synopsis  These are all possible gdf error codes that can be returned from
+ * @brief  These are all possible gdf error codes that can be returned from
  * a libgdf function. ANY NEW ERROR CODE MUST ALSO BE ADDED TO `gdf_error_get_name`
  * AS WELL
  */
@@ -103,7 +103,7 @@ typedef struct gdf_column_{
 
 /* --------------------------------------------------------------------------*/
 /** 
- * @Synopsis  These enums indicate which method is to be used for an operation.
+ * @brief  These enums indicate which method is to be used for an operation.
  * For example, it is used to select between the hash-based vs. sort-based implementations
  * of the Join operation.
  */
@@ -126,7 +126,7 @@ typedef enum {
 
 /* --------------------------------------------------------------------------*/
 /** 
- * @Synopsis These enums indicate the supported aggregation operations that can be
+ * @brief These enums indicate the supported aggregation operations that can be
  * performed on a set of aggregation columns as part of a GroupBy operation
  */
 /* ----------------------------------------------------------------------------*/
@@ -143,7 +143,7 @@ typedef enum {
 
 /* --------------------------------------------------------------------------*/
 /** 
- * @Synopsis  Colors for use with NVTX ranges.
+ * @brief  Colors for use with NVTX ranges.
  *
  * These enumerations are the available pre-defined colors for use with
  * user-defined NVTX ranges.
@@ -164,7 +164,7 @@ typedef enum {
 
 /* --------------------------------------------------------------------------*/
 /** 
- * @Synopsis  This struct holds various information about how an operation should be 
+ * @brief  This struct holds various information about how an operation should be 
  * performed as well as additional information about the input data.
  */
 /* ----------------------------------------------------------------------------*/

@@ -886,7 +886,7 @@ size_t multi_col_group_by_avg_sort(size_t         nrows,
  * @Param[out] d_indx Device array of re-ordered indices after sorting
  * @tparam IndexT The type of d_indx array 
  * 
- * @Returns
+ * @returns
  */
 /* ----------------------------------------------------------------------------*/
 template<typename IndexT>

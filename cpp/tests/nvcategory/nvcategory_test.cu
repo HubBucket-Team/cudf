@@ -655,7 +655,6 @@ struct NVCategoryJoinTest : public GdfTest
       std::copy(host_pair_result.begin(), host_pair_result.end(), std::ostream_iterator<result_type>(std::cout, ""));
       std::cout << "\n";
     }
-
     return host_pair_result;
   }
 };
@@ -664,7 +663,7 @@ TEST_F(NVCategoryJoinTest, join_test){
 
 	bool print = true;
 	size_t rows_size = 16;
-	size_t max_int_value = 50;
+//	size_t max_int_value = 50;
 	join_op op = join_op::INNER;
 
 	size_t length = 1;

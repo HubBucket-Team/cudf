@@ -155,6 +155,11 @@ set(REPLACE_TEST_SRC
 
 ConfigureTest(REPLACE_TEST "${REPLACE_TEST_SRC}")
 
+set(REPLACE_NULLS_TEST_SRC 
+    "${CMAKE_CURRENT_SOURCE_DIR}/replace/replace-nulls_tests.cu")
+
+ConfigureTest(REPLACE_NULLS_TEST "${REPLACE_NULLS_TEST_SRC}")
+
 ###################################################################################################
 # - unary tests -----------------------------------------------------------------------------------
 
@@ -188,19 +193,19 @@ set(TYPES_TEST_SRC
 ConfigureTest(TYPES_TEST "${TYPES_TEST_SRC}")
 
 ###################################################################################################
+# - nvccategory tests -------------------------------------------------------------------------------------
+
+set(NVCATEGORY_TEST_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/nvcategory/nvcategory_test.cu")
+
+ConfigureTest(NVCATEGORY_TEST "${NVCATEGORY_TEST_SRC}")
+
 # - transpose tests -------------------------------------------------------------------------------
 
 set(TRANSPOSE_TEST_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/transpose/transpose_test.cu")
 
 ConfigureTest(TRANSPOSE_TEST "${TRANSPOSE_TEST_SRC}")
-###################################################################################################
-# - nvcategory tests ------------------------------------------------------------------------------
-
-set(NVCATEGORY_TEST_SRC
-    "${CMAKE_CURRENT_SOURCE_DIR}/nvcategory/nvcategory_test.cu")
-
-ConfigureTest(NVCATEGORY_TEST "${NVCATEGORY_TEST_SRC}")
 
 ###################################################################################################
 ### enable testing ################################################################################
