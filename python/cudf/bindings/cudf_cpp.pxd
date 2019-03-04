@@ -19,7 +19,8 @@ cdef gdf_column* column_view_from_NDArrays(size, data, mask,
                                            dtype, null_count)
 
 cdef gdf_context* create_context_view(flag_sorted, method, flag_distinct,
-                                      flag_sort_result, flag_sort_inplace)
+                                      flag_sort_result, flag_sort_inplace,
+                                      null_sort_behavior)
 
 cpdef check_gdf_error(errcode)
 
@@ -102,11 +103,15 @@ cdef extern from "cudf.h" nogil:
         gdf_dtype_extra_info dtype_info
         char *col_name
 
+    ctypedef enum gdf_nulls_sort_behavior:
+      GDF_NULL_AS_LARGEST = 0, 
+      GDF_NULL_AS_SMALLEST,
+      GDF_NULL_AS_LARGEST_FOR_MULTISORT,
+
     ctypedef enum gdf_method:
       GDF_SORT = 0,
       GDF_HASH,
       N_GDF_METHODS,
-
 
     ctypedef enum gdf_quantile_method:
       GDF_QUANT_LINEAR =0,
@@ -214,7 +219,8 @@ cdef extern from "cudf.h" nogil:
                                     gdf_method flag_method,
                                     int flag_distinct,
                                     int flag_sort_result,
-                                    int flag_sort_inplace)
+                                    int flag_sort_inplace,
+                                    gdf_nulls_sort_behavior flag_nulls_sort_behavior)
 
     cdef const char * gdf_error_get_name(gdf_error errcode)
 
@@ -575,7 +581,7 @@ cdef extern from "cudf.h" nogil:
 
     cdef gdf_error gdf_validity_and(gdf_column *lhs, gdf_column *rhs, gdf_column *output)
 
-    cdef unsigned int gdf_reduce_optimal_output_size()
+    cdef unsigned int gdf_reduction_get_intermediate_output_size()
 
     cdef gdf_error gdf_sum(gdf_column *col, void *dev_result, gdf_size_type dev_result_size)
     cdef gdf_error gdf_product(gdf_column *col, void *dev_result, gdf_size_type dev_result_size)

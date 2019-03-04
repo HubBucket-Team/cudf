@@ -7,8 +7,8 @@
 
 # Copyright (c) 2018, NVIDIA CORPORATION.
 
-from .cudf_cpp cimport *
-from .cudf_cpp import *
+from cudf.bindings.cudf_cpp cimport *
+from cudf.bindings.cudf_cpp import *
 
 import numpy as np
 import pandas as pd
@@ -40,8 +40,12 @@ cpdef apply_order_by(in_cols, out_indices, ascending=True, na_position=1):
     check_gdf_compatibility(out_indices)
     cdef gdf_column* output_indices = column_view_from_column(out_indices)
 
-    cdef gdf_context ctxt
-    ctxt.flag_nulls_sort_behavior = na_position
+    if na_position == 1:
+        null_sort_behavior_api = 'null_as_smallest'
+    else :
+        null_sort_behavior_api = 'null_as_largest'
+
+    cdef gdf_context* context = create_context_view(0, 'sort', 0, 0, 0, null_sort_behavior_api)
 
     cdef gdf_error result 
     
@@ -50,7 +54,7 @@ cpdef apply_order_by(in_cols, out_indices, ascending=True, na_position=1):
                               <int8_t*> asc_desc,
                               <size_t> num_inputs,
                               <gdf_column*> output_indices,
-                              <gdf_context*> &ctxt)
+                              <gdf_context*> context)
     
     check_gdf_error(result)
 

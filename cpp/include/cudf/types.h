@@ -13,7 +13,7 @@ typedef uint8_t gdf_bool;
 
 /* --------------------------------------------------------------------------*/
  /**
- * @Synopsis  These enums indicate the possible data types for a gdf_column
+ * @brief  These enums indicate the possible data types for a gdf_column
  */
 /* ----------------------------------------------------------------------------*/
 typedef enum {
@@ -35,7 +35,7 @@ typedef enum {
 
 /* --------------------------------------------------------------------------*/
 /**
- * @Synopsis  These are all possible gdf error codes that can be returned from
+ * @brief  These are all possible gdf error codes that can be returned from
  * a libgdf function. ANY NEW ERROR CODE MUST ALSO BE ADDED TO `gdf_error_get_name`
  * AS WELL
  */
@@ -99,7 +99,7 @@ typedef struct gdf_column_{
 
 /* --------------------------------------------------------------------------*/
 /** 
- * @Synopsis  These enums indicate which method is to be used for an operation.
+ * @brief  These enums indicate which method is to be used for an operation.
  * For example, it is used to select between the hash-based vs. sort-based implementations
  * of the Join operation.
  */
@@ -122,7 +122,7 @@ typedef enum {
 
 /* --------------------------------------------------------------------------*/
 /** 
- * @Synopsis These enums indicate the supported aggregation operations that can be
+ * @brief These enums indicate the supported aggregation operations that can be
  * performed on a set of aggregation columns as part of a GroupBy operation
  */
 /* ----------------------------------------------------------------------------*/
@@ -140,7 +140,7 @@ typedef enum {
 
 /* --------------------------------------------------------------------------*/
 /** 
- * @Synopsis  Colors for use with NVTX ranges.
+ * @brief  Colors for use with NVTX ranges.
  *
  * These enumerations are the available pre-defined colors for use with
  * user-defined NVTX ranges.
@@ -159,9 +159,23 @@ typedef enum {
   GDF_NUM_COLORS, /** Add new colors above this line */
 } gdf_color;
 
+
 /* --------------------------------------------------------------------------*/
 /** 
- * @Synopsis  This struct holds various information about how an operation should be 
+ * @synopsis  These enums indicate how the nulls are treated in group_by/order_by operations.
+ */
+/* ----------------------------------------------------------------------------*/
+typedef enum {
+  GDF_NULL_AS_LARGEST = 0, /**< When sorting NULLS will be treated as the largest number */
+  GDF_NULL_AS_SMALLEST,  /**< When sorting NULLS will be treated as the smallest number */
+  GDF_NULL_AS_LARGEST_FOR_MULTISORT  /**< When sorting a multi column data set, if there is a NULL in any of the
+                                     columns for a row, then that row will be will be treated as the largest number */
+} gdf_nulls_sort_behavior;
+
+
+/* --------------------------------------------------------------------------*/
+/** 
+ * @brief  This struct holds various information about how an operation should be 
  * performed as well as additional information about the input data.
  */
 /* ----------------------------------------------------------------------------*/
@@ -171,10 +185,13 @@ typedef struct gdf_context_{
   int flag_distinct;            /**< for COUNT: DISTINCT = 1, else = 0 */
   int flag_sort_result;         /**< When method is GDF_HASH, 0 = result is not sorted, 1 = result is sorted */
   int flag_sort_inplace;        /**< 0 = No sort in place allowed, 1 = else */
-  int flag_groupby_include_nulls; /**< 0 = Nulls are ignored in group by keys (Pandas style), 
-                                      1 = Nulls are treated as values in group by keys where NULL == NULL (SQL style)*/ 
-  int flag_nulls_sort_behavior; /**< 0 = Nulls are are treated as largest, 1 = Nulls are treated as smallest, 
-                                      2 = Special multi-sort case any row with null is largest*/ 
+  bool flag_groupby_include_nulls; 
+                                /**< false = Nulls are ignored in group by keys (Pandas style), 
+                                true = Nulls are treated as values in group by keys where NULL == NULL (SQL style)*/ 
+  gdf_nulls_sort_behavior flag_nulls_sort_behavior; 
+                                /**< GDF_NULL_AS_LARGEST = Nulls are are treated as largest,
+                                GDF_NULL_AS_SMALLEST    = Nulls are treated as smallest, 
+                                GDF_NULL_AS_LARGEST_FOR_MULTISORT = Special multi-sort case any row with null is largest*/ 
 } gdf_context;
 
 

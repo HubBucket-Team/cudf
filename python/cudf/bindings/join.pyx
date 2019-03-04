@@ -7,8 +7,8 @@
 
 # Copyright (c) 2018, NVIDIA CORPORATION.
 
-from .cudf_cpp cimport *
-from .cudf_cpp import *
+from cudf.bindings.cudf_cpp cimport *
+from cudf.bindings.cudf_cpp import *
 
 import numpy as np
 import pandas as pd
@@ -28,7 +28,7 @@ cpdef join(col_lhs, col_rhs, on, how, method='sort'):
       Call gdf join for full outer, inner and left joins.
     """
 
-    cdef gdf_context* context = create_context_view(0, method, 0, 0, 0)
+    cdef gdf_context* context = create_context_view(0, method, 0, 0, 0, 'null_as_largest')
 
     if how not in ['left', 'inner', 'outer']:
         msg = "new join api only supports left or inner"
