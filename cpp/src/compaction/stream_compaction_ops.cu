@@ -34,7 +34,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/iterator_adaptor.h>
 #include <thrust/iterator/transform_iterator.h>
-
+#include "utilities/error_utils.hpp"
 #include <cuda_runtime.h>
 #include <vector>
 #include <map>

@@ -209,7 +209,9 @@ add_library(cudf SHARED
             src/io/comp/cpu_unbz2.cpp
             src/utilities/cuda_utils.cu
             src/utilities/error_utils.cpp
-            src/utilities/nvtx/nvtx_utils.cpp)
+            src/utilities/nvtx/nvtx_utils.cpp
+            src/copying/gather.cu
+            src/copying/scatter.cu)
 
 #Override RPATH for cudf
 SET_TARGET_PROPERTIES(cudf PROPERTIES BUILD_RPATH "\$ORIGIN")
@@ -266,6 +268,16 @@ add_custom_command(OUTPUT INSTALL_PYTHON_CFFI
                    VERBATIM)
 
 add_custom_target(install_python DEPENDS cudf rmm_install_python PYTHON_CFFI INSTALL_PYTHON_CFFI)
+
+	###################################################################################################
+# - make documentation ----------------------------------------------------------------------------
+
+add_custom_command(OUTPUT CUDF_DOXYGEN
+                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/doxygen
+                   COMMAND doxygen Doxyfile
+                   VERBATIM)
+
+add_custom_target(doc DEPENDS CUDF_DOXYGEN)
 
 
 
