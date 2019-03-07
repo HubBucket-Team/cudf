@@ -506,8 +506,6 @@ public:
   }
 
 private:
-        rmm::device_vector<gdf_valid_type> remapped_valid_copy(gdf_get_num_chars_bitmask(num_rows));
-                remapped_valid_copy.end(), output_column->valid);
 
   const size_type num_columns; /** The number of columns in the table */
   size_type column_length{0};     /** The number of rows in the table */

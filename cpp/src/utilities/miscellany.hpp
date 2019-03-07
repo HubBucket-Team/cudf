@@ -63,7 +63,7 @@ struct size_of_helper {
 
 }
 
-constexpr std::size_t inline size_of(gdf_dtype element_type) {
+std::size_t inline size_of(gdf_dtype element_type) {
     return type_dispatcher(element_type, detail::size_of_helper{});
 }
 

@@ -18,7 +18,7 @@
 
 #include <cudf.h>
 #include <utilities/cudf_utils.h>
-#include <utilities/error_utils.h>
+#include <utilities/error_utils.hpp>
 #include <utilities/miscellany.hpp>
 
 #include <rmm/thrust_rmm_allocator.h>

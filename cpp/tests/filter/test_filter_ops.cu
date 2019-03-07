@@ -190,10 +190,7 @@ struct GpuApplyStencilTest : public GdfTest {
 
         if(print) {
             std::cout<<"Input (" << length << " elements):\n";
-            print_gdf_column(col.get(), this->element_print_width());
-
-            std::cout<<"Stencil (" << length << " bit-packed elements):\n";
-            print_stencil(*(stencil.get()), this->element_print_width());
+            print_gdf_column(col.get());
 
             std::cout<<"\n";
         }
@@ -201,15 +198,6 @@ struct GpuApplyStencilTest : public GdfTest {
 
     unsigned element_print_width() const {
         return std::ceil(std::log10(maximum_value));
-    }
-
-    void print_reference_column() {
-        std::cout<<"Reference Output:\n";
-        print_typed_column<column_t>(reference_vector.data(), reference_valid.get(), reference_vector.size(), element_print_width());
-//        for(size_t i = 0; i < reference_vector.size(); i++) {
-//            std::cout << "(" << std::to_string(reference_vector[i]) << "|" << gdf_is_valid(reference_valid.get(), i) << "), ";
-//        }
-        std::cout<<"\n\n";
     }
 
     void allocate_reference_valids(host_valid_pointer& valid_ptr, size_t length) {
@@ -250,10 +238,9 @@ struct GpuApplyStencilTest : public GdfTest {
 
     void print_debug() {
         std::cout<<"Output:\n";
-        print_gdf_column(output.get(), element_print_width());
+        print_gdf_column(output.get());
         std::cout<<"\n";
 
-        print_reference_column();
     }
 
     void compare_gdf_result() {

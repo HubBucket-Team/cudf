@@ -17,7 +17,7 @@
 
 #include <cudf.h>
 #include <utilities/cudf_utils.h>
-#include <utilities/error_utils.h>
+#include <utilities/error_utils.hpp>
 #include <utilities/miscellany.hpp>
 #include <utilities/device_side_utilities.cuh>
 #include <utilities/type_dispatcher.hpp>

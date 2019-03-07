@@ -2,6 +2,8 @@
 #include <thrust/fill.h>
 
 #include "cudf.h"
+#include "types.hpp"
+#include "copying.hpp"
 #include "new_groupby.hpp"
 #include "utilities/nvtx/nvtx_utils.h"
 #include "utilities/error_utils.hpp"
@@ -247,7 +249,7 @@ gdf_error gdf_group_by_wo_aggregations(int num_data_cols,
     group_by_keys_contain_nulls = group_by_keys_contain_nulls || orderby_cols_vect[i]->null_count > 0;
   }
 
-  rmm::device_vector<int32_t> sorted_indices(nrows);
+  rmm::device_vector<gdf_index_type> sorted_indices(nrows);
   gdf_column sorted_indices_col;
   gdf_error status = gdf_column_view(&sorted_indices_col, (void*)(sorted_indices.data().get()), 
                             nullptr, nrows, GDF_INT32);
@@ -265,10 +267,10 @@ gdf_error gdf_group_by_wo_aggregations(int num_data_cols,
       return status;
 
     // run gather operation to establish new order
-    std::unique_ptr< gdf_table<int32_t> > table_in{new gdf_table<int32_t>{num_data_cols, data_cols_in}};
-    std::unique_ptr< gdf_table<int32_t> > table_out{new gdf_table<int32_t>{num_data_cols, data_cols_out}};
-
-    status = table_in->gather<int32_t>(sorted_indices, *table_out.get());
+    cudf::table table_in(data_cols_in, num_data_cols);
+    cudf::table table_out(data_cols_out, num_data_cols);
+    
+    status = cudf::gather(&table_in, sorted_indices.data().get(), &table_out);
     if (status != GDF_SUCCESS)
       return status;
 
@@ -306,10 +308,10 @@ gdf_error gdf_group_by_wo_aggregations(int num_data_cols,
     }
     
     // run gather operation to establish new order
-    std::unique_ptr< gdf_table<int32_t> > table_in{new gdf_table<int32_t>{num_data_cols, data_cols_in}};
-    std::unique_ptr< gdf_table<int32_t> > table_out{new gdf_table<int32_t>{num_data_cols, data_cols_out}};
+    cudf::table table_in(data_cols_in, num_data_cols);
+    cudf::table table_out(data_cols_out, num_data_cols);
     
-    status = table_in->gather<int32_t>(sorted_indices, *table_out.get());
+    status = cudf::gather(&table_in, sorted_indices.data().get(), &table_out);
     if (status != GDF_SUCCESS)
       return status;
    
