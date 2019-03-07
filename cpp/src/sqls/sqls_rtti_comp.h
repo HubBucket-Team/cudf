@@ -27,7 +27,7 @@
 #include "utilities/cudf_utils.h"
 #include "utilities/type_dispatcher.hpp"
 
-template<typename IndexT>
+template<typename IndexT = gdf_size_type>
 struct LesserRTTI
 {
   LesserRTTI(void *const *cols,
@@ -77,20 +77,12 @@ struct LesserRTTI
         asc = (asc_desc_flags_[col_index] == GDF_ORDER_ASC);
       }
 
-      State state;
-      if(asc){
-        state = cudf::type_dispatcher(col_type, OpLess{},
-                                      row1,
-                                      row2,
-                                      col_index,
-                                      columns_);
-      }else{
-        state = cudf::type_dispatcher(col_type, OpGreater{},
-                                      row1,
-                                      row2,
-                                      col_index,
-                                      columns_);
-      }
+      State state = cudf::type_dispatcher(col_type, OpAscDescComparator{},
+                                          row1,
+                                          row2,
+                                          col_index,
+                                          columns_,
+                                          asc);
 
       switch( state )
       {
@@ -117,25 +109,13 @@ struct LesserRTTI
         asc = (asc_desc_flags_[col_index] == GDF_ORDER_ASC);
       }
 
-      State state;
-      if(asc){
-        state = cudf::type_dispatcher(col_type, OpLess_with_nulls{},
+      State state = cudf::type_dispatcher(col_type, OpAscDescComparatorWithNulls{},
                                       row1,
                                       row2,
                                       col_index,
                                       columns_,
                                       valids_,
-                                      nulls_are_smallest_);
-      }else{
-        state = cudf::type_dispatcher(col_type, OpGreater_with_nulls{},
-                                      row1,
-                                      row2,
-                                      col_index,
-                                      columns_,
-                                      valids_,
-                                      nulls_are_smallest_);
-      }
-
+                                      nulls_are_smallest_, asc);
       switch( state )
       {
       case State::False:
@@ -206,11 +186,12 @@ struct LesserRTTI
     {
       gdf_dtype col_type = static_cast<gdf_dtype>(rtti_[col_index]);
 
-      State state = cudf::type_dispatcher(col_type, OpLess{},
+      State state = cudf::type_dispatcher(col_type, OpAscDescComparator{},
                                           row1,
                                           row2,
                                           col_index,
-                                          columns_);
+                                          columns_,
+                                          true);
       switch( state )
       {
       case State::False:
@@ -231,13 +212,14 @@ struct LesserRTTI
     {
       gdf_dtype col_type = static_cast<gdf_dtype>(rtti_[col_index]);
 
-      State state = cudf::type_dispatcher(col_type, OpLess_with_nulls{},
+      State state = cudf::type_dispatcher(col_type, OpAscDescComparator{},
                                           row1,
                                           row2,
                                           col_index,
                                           columns_,
                                           valids_,
-                                          nulls_are_smallest_);
+                                          nulls_are_smallest_,
+                                          true);
       switch( state )
       {
       case State::False:
@@ -271,115 +253,209 @@ struct LesserRTTI
 private:
   enum class State {False = 0, True = 1, Undecided = 2};
 
-  struct OpLess
-  {
+#define LESS(res1, res2)          \
+      if( res1 < res2 )           \
+        return State::True;       \
+      else if( res1 == res2 )     \
+        return State::Undecided;  \
+      else                        \
+        return State::False       \
+
+#define GREATER(res1, res2)       \
+      if( res1 > res2 )           \
+        return State::True;       \
+      else if( res1 == res2 )     \
+        return State::Undecided;  \
+      else                        \
+        return State::False       \
+
+
+  struct OpAscDescComparator {
     template<typename ColType>
     __device__
     State operator() (IndexT row1, IndexT row2,
                       int col_index,
-                      const void* const * columns)
+                      const void* const * columns, bool asc)
     {
       const ColType res1 = LesserRTTI::at<ColType>(col_index, row1, columns);
       const ColType res2 = LesserRTTI::at<ColType>(col_index, row2, columns);
       
-      if( res1 < res2 )
-        return State::True;
-      else if( res1 == res2 )
-        return State::Undecided;
-      else
-	      return State::False;
+      if (asc) {
+        LESS(res1, res2);
+      } else {
+        GREATER(res1, res2);
+      }
     }
   };
 
-  struct OpLess_with_nulls
-  {
+#define LESS_WITH_NULSS(res1, res2, isValid1, isValid2)   \
+      if (!isValid2 && !isValid1)                         \
+			  return State::Undecided;                          \
+		  else if( isValid1 && isValid2) {                    \
+        if( res1 < res2 )                                \
+          return State::True;                            \
+        else if( res1 == res2 )                          \
+          return State::Undecided;                       \
+        else                                             \
+          return State::False;                           \
+      } else if (!isValid1 && nulls_are_smallest)         \
+			  return State::True;                               \
+	  	else if (!isValid2 && !nulls_are_smallest)          \
+	  		return State::True;                               \
+		  else                                                \
+        return State::False                               \
+
+#define GREATER_WITH_NULSS(res1, res2, isValid1, isValid2)   \
+      if (!isValid2 && !isValid1)                         \
+			  return State::Undecided;                          \
+		  else if( isValid1 && isValid2) {                    \
+        if( res1 > res2 )                                \
+          return State::True;                            \
+        else if( res1 == res2 )                          \
+          return State::Undecided;                       \
+        else                                             \
+          return State::False;                           \
+      } else if (!isValid1 && nulls_are_smallest)         \
+			  return State::True;                               \
+	  	else if (!isValid2 && !nulls_are_smallest)          \
+	  		return State::True;                               \
+		  else                                                \
+        return State::False                               \
+
+
+  struct OpAscDescComparatorWithNulls {
     template<typename ColType>
 	  __device__
 	  State operator() (IndexT row1, IndexT row2,
                       int col_index,
                       const void* const * columns,
                       const gdf_valid_type* const * valids,
-                      bool nulls_are_smallest)
+                      bool nulls_are_smallest, bool asc)
 	  {
 		  const ColType res1 = LesserRTTI::at<ColType>(col_index, row1, columns);
 		  const ColType res2 = LesserRTTI::at<ColType>(col_index, row2, columns);
 		  const bool isValid1 = LesserRTTI::is_valid(col_index, row1, valids);
 		  const bool isValid2 = LesserRTTI::is_valid(col_index, row2, valids);
 
-		  if (!isValid2 && !isValid1)
-			  return State::Undecided;
-		  else if( isValid1 && isValid2)
-		  {
-			  if( res1 < res2 )
-				  return State::True;
-			  else if( res1 == res2 )
-				  return State::Undecided;
-			  else
-				  return State::False;
-		  }
-		  else if (!isValid1 && nulls_are_smallest)
-			  return State::True;
-	  	else if (!isValid2 && !nulls_are_smallest)
-	  		return State::True;
-		  else
-			  return State::False;
+      if (asc) {
+        LESS_WITH_NULSS(res1, res2, isValid1, isValid2);
+      } else {
+        GREATER_WITH_NULSS(res1, res2, isValid1, isValid2);
+      }
 	  }
   };
 
-  struct OpGreater
-  {
-    template<typename ColType>
-    __device__
-    State operator() (IndexT row1, IndexT row2,
-                      int col_index,
-  		                const void* const * columns)
-    {
-      const ColType res1 = LesserRTTI::at<ColType>(col_index, row1, columns);
-      const ColType res2 = LesserRTTI::at<ColType>(col_index, row2, columns);
+  // struct OpLess
+  // {
+  //   template<typename ColType>
+  //   __device__
+  //   State operator() (IndexT row1, IndexT row2,
+  //                     int col_index,
+  //                     const void* const * columns)
+  //   {
+  //     const ColType res1 = LesserRTTI::at<ColType>(col_index, row1, columns);
+  //     const ColType res2 = LesserRTTI::at<ColType>(col_index, row2, columns);
+      
+  //     if( res1 < res2 )
+  //       return State::True;
+  //     else if( res1 == res2 )
+  //       return State::Undecided;
+  //     else
+	//       return State::False;
+  //   }
+  // };
 
-      if( res1 > res2 )
-  	    return State::True;
-      else if( res1 == res2 )
-  	    return State::Undecided;
-      else
-  	    return State::False;
-    }
-  };
+  
 
-  struct OpGreater_with_nulls
-  {
-    template<typename ColType>
-	  __device__
-	  State operator() (IndexT row1, IndexT row2,
-                      int col_index,
-                      const void* const * columns,
-                      const gdf_valid_type* const * valids,
-                      bool nulls_are_smallest)
-	  {
-		  const ColType res1 = LesserRTTI::at<ColType>(col_index, row1, columns);
-		  const ColType res2 = LesserRTTI::at<ColType>(col_index, row2, columns);
-		  const bool isValid1 = LesserRTTI::is_valid(col_index, row1, valids);
-		  const bool isValid2 = LesserRTTI::is_valid(col_index, row2, valids);
+  // struct OpLess_with_nulls
+  // {
+  //   template<typename ColType>
+	//   __device__
+	//   State operator() (IndexT row1, IndexT row2,
+  //                     int col_index,
+  //                     const void* const * columns,
+  //                     const gdf_valid_type* const * valids,
+  //                     bool nulls_are_smallest)
+	//   {
+	// 	  const ColType res1 = LesserRTTI::at<ColType>(col_index, row1, columns);
+	// 	  const ColType res2 = LesserRTTI::at<ColType>(col_index, row2, columns);
+	// 	  const bool isValid1 = LesserRTTI::is_valid(col_index, row1, valids);
+	// 	  const bool isValid2 = LesserRTTI::is_valid(col_index, row2, valids);
 
-		  if (!isValid2 && !isValid1)
-			  return State::Undecided;
-		  else if( isValid1 && isValid2)
-		  {
-			  if( res1 > res2 )
-				  return State::True;
-			  else if( res1 == res2 )
-				  return State::Undecided;
-			  else
-				  return State::False;
-		  }
-		  else if (!isValid1 && nulls_are_smallest)
-			  return State::False;
-	  	else if (!isValid2 && !nulls_are_smallest)
-	  		return State::False;
-		  else
-			  return State::True;
-	  }
-  };
+	// 	  if (!isValid2 && !isValid1)
+	// 		  return State::Undecided;
+	// 	  else if( isValid1 && isValid2)
+	// 	  {
+	// 		  if( res1 < res2 )
+	// 			  return State::True;
+	// 		  else if( res1 == res2 )
+	// 			  return State::Undecided;
+	// 		  else
+	// 			  return State::False;
+	// 	  }
+	// 	  else if (!isValid1 && nulls_are_smallest)
+	// 		  return State::True;
+	//   	else if (!isValid2 && !nulls_are_smallest)
+	//   		return State::True;
+	// 	  else
+	// 		  return State::False;
+	//   }
+  // };
+
+  // struct OpGreater
+  // {
+  //   template<typename ColType>
+  //   __device__
+  //   State operator() (IndexT row1, IndexT row2,
+  //                     int col_index,
+  // 		                const void* const * columns)
+  //   {
+  //     const ColType res1 = LesserRTTI::at<ColType>(col_index, row1, columns);
+  //     const ColType res2 = LesserRTTI::at<ColType>(col_index, row2, columns);
+
+  //     if( res1 > res2 )
+  // 	    return State::True;
+  //     else if( res1 == res2 )
+  // 	    return State::Undecided;
+  //     else
+  // 	    return State::False;
+  //   }
+  // };
+
+  // struct OpGreater_with_nulls
+  // {
+  //   template<typename ColType>
+	//   __device__
+	//   State operator() (IndexT row1, IndexT row2,
+  //                     int col_index,
+  //                     const void* const * columns,
+  //                     const gdf_valid_type* const * valids,
+  //                     bool nulls_are_smallest)
+	//   {
+	// 	  const ColType res1 = LesserRTTI::at<ColType>(col_index, row1, columns);
+	// 	  const ColType res2 = LesserRTTI::at<ColType>(col_index, row2, columns);
+	// 	  const bool isValid1 = LesserRTTI::is_valid(col_index, row1, valids);
+	// 	  const bool isValid2 = LesserRTTI::is_valid(col_index, row2, valids);
+
+	// 	  if (!isValid2 && !isValid1)
+	// 		  return State::Undecided;
+	// 	  else if( isValid1 && isValid2)
+	// 	  {
+	// 		  if( res1 > res2 )
+	// 			  return State::True;
+	// 		  else if( res1 == res2 )
+	// 			  return State::Undecided;
+	// 		  else
+	// 			  return State::False;
+	// 	  }
+	// 	  else if (!isValid1 && nulls_are_smallest)
+	// 		  return State::False;
+	//   	else if (!isValid2 && !nulls_are_smallest)
+	//   		return State::False;
+	// 	  else
+	// 		  return State::True;
+	//   }
+  // };
 
   struct OpEqual
   {
