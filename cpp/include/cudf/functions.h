@@ -2589,7 +2589,7 @@ gdf_error gdf_digitize(gdf_column* col,
  */
 gdf_error gdf_sorted_merge(gdf_column **     left_cols,
                            gdf_column **     right_cols,
-                           const std::size_t ncols,
+                           const gdf_size_type ncols,
                            gdf_column *      sort_by_cols,
                            gdf_column *      asc_desc,
                            gdf_column **     output_cols);
