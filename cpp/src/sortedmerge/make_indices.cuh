@@ -4,5 +4,5 @@
 
 #include <bits/c++config.h>
 
-std::size_t *make_indices(cudaStream_t         cudaStreaam,
+gdf_size_type *make_indices(cudaStream_t         cudaStreaam,
                           const std::ptrdiff_t length);

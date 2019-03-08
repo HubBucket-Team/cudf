@@ -8,4 +8,4 @@ PairRTTI<IndexT>::PairRTTI(const SideGroup &        left_side_group,
     : left_side_group_{left_side_group}, right_side_group_{right_side_group},
       size_{size}, asc_desc_flags_{asc_desc_flags} {}
 
-template class PairRTTI<std::size_t>;
+template class PairRTTI<gdf_size_type>;

@@ -11,14 +11,14 @@
 
 gdf_error gdf_sorted_merge(gdf_column **     left_cols,
                            gdf_column **     right_cols,
-                           const std::size_t ncols,
+                           const gdf_size_type ncols,
                            gdf_column *      sort_by_cols,
                            gdf_column *      asc_desc,
                            gdf_column **     output_cols) {
-    const std::size_t left_size  = left_cols[0]->size;
-    const std::size_t right_size = right_cols[0]->size;
+    const gdf_size_type left_size  = left_cols[0]->size;
+    const gdf_size_type right_size = right_cols[0]->size;
 
-    const std::size_t total_size = left_size + right_size;
+    const gdf_size_type total_size = left_size + right_size;
 
     gdf_column sides{nullptr, nullptr, total_size, GDF_INT32, 0, {}, nullptr};
     gdf_column indices{nullptr, nullptr, total_size, GDF_INT32, 0, {}, nullptr};
@@ -60,14 +60,14 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
             thrust::make_counting_iterator(0), output_zip_iterator)),
         total_size,
         [=] __device__(
-            thrust::tuple<int, thrust::tuple<int, std::size_t>> group_tuple) {
-            thrust::tuple<int, std::size_t> output_tuple =
+            thrust::tuple<int, thrust::tuple<int, gdf_size_type>> group_tuple) {
+            thrust::tuple<int, gdf_size_type> output_tuple =
                 thrust::get<1>(group_tuple);
 
-            const std::size_t side = thrust::get<0>(output_tuple);
-            const std::size_t pos  = thrust::get<1>(output_tuple);
+            const gdf_size_type side = thrust::get<0>(output_tuple);
+            const gdf_size_type pos  = thrust::get<1>(output_tuple);
 
-            for (std::size_t i = 0; i < ncols; i++) {
+            for (gdf_size_type i = 0; i < ncols; i++) {
                 const gdf_dtype output_type =
                     static_cast<gdf_dtype>(output_d_col_types[i]);
 
