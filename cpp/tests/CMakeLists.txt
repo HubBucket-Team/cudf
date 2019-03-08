@@ -241,3 +241,4 @@ enable_testing()
 
 
 
+add_subdirectory(sorted-merge)
