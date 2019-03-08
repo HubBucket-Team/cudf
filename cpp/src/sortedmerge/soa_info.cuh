@@ -1,7 +1,8 @@
 #pragma once
 
-#include "../../src/rmm/thrust_rmm_allocator.h"
-#include "../../src/sqls/sqls_rtti_comp.h"
+#include <cudf.h>
+#include "rmm/thrust_rmm_allocator.h"
+#include "sqls/sqls_rtti_comp.h"
 
 #define INITIALIZE_D_VALUES(PREFIX)                                            \
     rmm::device_vector<void *>           PREFIX##_d_cols(ncols);               \
