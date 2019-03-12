@@ -54,6 +54,7 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
     INITIALIZE_D_VALUES(right);
     INITIALIZE_D_VALUES(output);
 
+    // compute values from indices
     thrust::for_each_n(
         thrust::device,
         thrust::make_zip_iterator(thrust::make_tuple(
@@ -92,6 +93,31 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
                 }
             }
         });
+
+    // compute valids
+    for (std::size_t i = 0; i < static_cast<std::size_t>(ncols); i++) {
+        const gdf_column *left_col  = left_cols[i];
+        const gdf_column *right_col = right_cols[i];
+
+        gdf_column *output_col = output_cols[i];
+
+        const gdf_size_type total_valids =
+            total_size - (left_col->null_count + right_col->null_count);
+
+        cudaMemset(output_col->valid, 0,
+                   gdf_get_num_chars_bitmask(total_size));
+
+        const std::size_t ones_size = total_valids / GDF_VALID_BITSIZE;
+        cudaMemset(output_col->valid, -1, ones_size);
+
+        const std::size_t partial_size = total_valids % GDF_VALID_BITSIZE;
+        if (0 < partial_size) {
+            cudaMemset(output_col->valid + ones_size,
+                       static_cast<std::uint8_t>(-1) >>
+                           (sizeof(std::uint64_t) - partial_size),
+                       1);
+        }
+    }
 
     RMM_FREE(sides.data, nullptr);
     RMM_FREE(indices.data, nullptr);
