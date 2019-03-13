@@ -107,7 +107,7 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
         const gdf_size_type total_valids = total_size - output_col->null_count;
 
         cudaStatus = cudaMemset(output_col->valid, 0,
-                                gdf_get_num_chars_bitmask(total_size));
+                                gdf_valid_allocation_size(total_size));
         if (cudaSuccess != cudaStatus) {
             RMM_FREE(sides.data, nullptr);
             RMM_FREE(indices.data, nullptr);

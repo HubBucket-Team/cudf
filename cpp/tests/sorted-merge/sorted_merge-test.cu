@@ -18,15 +18,15 @@ using SortedMergerTypes = ::testing::Types<int8_t, int16_t, int32_t, int64_t, fl
 TYPED_TEST_CASE(SortedMergeTest, SortedMergerTypes);
 
 TYPED_TEST(SortedMergeTest, MergeTwoSortedColumns) {
-    cudf::test::column_wrapper<TypeParam> leftColWrap1({0, 1, 2, 3}, std::vector<gdf_valid_type>(gdf_get_num_chars_bitmask(4),0xFF));
-    cudf::test::column_wrapper<TypeParam> leftColWrap2({4, 5, 6, 7}, std::vector<gdf_valid_type>(gdf_get_num_chars_bitmask(4),0xFF));
+    cudf::test::column_wrapper<TypeParam> leftColWrap1({0, 1, 2, 3}, std::vector<gdf_valid_type>(gdf_valid_allocation_size(4),0xFF));
+    cudf::test::column_wrapper<TypeParam> leftColWrap2({4, 5, 6, 7}, std::vector<gdf_valid_type>(gdf_valid_allocation_size(4),0xFF));
     // cudf::test::column_wrapper<TypeParam> leftColWrap1(std::vector<TypeParam>({0, 1, 2, 3}));
     // cudf::test::column_wrapper<TypeParam> leftColWrap2(std::vector<TypeParam>({4, 5, 6, 7}));
     gdf_column *leftColumn1 = leftColWrap1.get();
     gdf_column *leftColumn2 = leftColWrap2.get();
 
-    cudf::test::column_wrapper<TypeParam> rightColWrap1({1, 2}, std::vector<gdf_valid_type>(gdf_get_num_chars_bitmask(2),0xFF));
-    cudf::test::column_wrapper<TypeParam> rightColWrap2({8, 9}, std::vector<gdf_valid_type>(gdf_get_num_chars_bitmask(2),0xFF));
+    cudf::test::column_wrapper<TypeParam> rightColWrap1({1, 2}, std::vector<gdf_valid_type>(gdf_valid_allocation_size(2),0xFF));
+    cudf::test::column_wrapper<TypeParam> rightColWrap2({8, 9}, std::vector<gdf_valid_type>(gdf_valid_allocation_size(2),0xFF));
     // cudf::test::column_wrapper<TypeParam> rightColWrap1(std::vector<TypeParam>({1, 2}));
     // cudf::test::column_wrapper<TypeParam> rightColWrap2(std::vector<TypeParam>({8, 9}));
 
@@ -34,8 +34,8 @@ TYPED_TEST(SortedMergeTest, MergeTwoSortedColumns) {
     gdf_column *rightColumn2 = rightColWrap2.get();
 
     const gdf_size_type outputLength = leftColumn1->size + rightColumn1->size;
-    cudf::test::column_wrapper<TypeParam> outputColWrap1(std::vector<TypeParam>(outputLength), std::vector<gdf_valid_type>(gdf_get_num_chars_bitmask(outputLength),0xFF));
-    cudf::test::column_wrapper<TypeParam> outputColWrap2(std::vector<TypeParam>(outputLength), std::vector<gdf_valid_type>(gdf_get_num_chars_bitmask(outputLength),0xFF));
+    cudf::test::column_wrapper<TypeParam> outputColWrap1(std::vector<TypeParam>(outputLength), std::vector<gdf_valid_type>(gdf_valid_allocation_size(outputLength),0xFF));
+    cudf::test::column_wrapper<TypeParam> outputColWrap2(std::vector<TypeParam>(outputLength), std::vector<gdf_valid_type>(gdf_valid_allocation_size(outputLength),0xFF));
     // cudf::test::column_wrapper<TypeParam> outputColWrap1(std::vector<TypeParam>(0, outputLength));
     // cudf::test::column_wrapper<TypeParam> outputColWrap2(std::vector<TypeParam>(0, outputLength));
     gdf_column *outputColumn1 = outputColWrap1.get();
@@ -69,8 +69,8 @@ TYPED_TEST(SortedMergeTest, MergeTwoSortedColumns) {
 
     EXPECT_EQ(GDF_SUCCESS, gdfError);
 
-    cudf::test::column_wrapper<TypeParam> expectedDataWrap1({0, 1, 1, 2, 2, 3}, std::vector<gdf_valid_type>(gdf_get_num_chars_bitmask(outputLength),0xFF));
-    cudf::test::column_wrapper<TypeParam> expectedDataWrap2({4, 5, 8, 9, 6, 7}, std::vector<gdf_valid_type>(gdf_get_num_chars_bitmask(outputLength),0xFF));
+    cudf::test::column_wrapper<TypeParam> expectedDataWrap1({0, 1, 1, 2, 2, 3}, std::vector<gdf_valid_type>(gdf_valid_allocation_size(outputLength),0xFF));
+    cudf::test::column_wrapper<TypeParam> expectedDataWrap2({4, 5, 8, 9, 6, 7}, std::vector<gdf_valid_type>(gdf_valid_allocation_size(outputLength),0xFF));
     // cudf::test::column_wrapper<TypeParam> expectedDataWrap1(std::vector<TypeParam>({0, 1, 1, 2, 2, 3}));
     // cudf::test::column_wrapper<TypeParam> expectedDataWrap2(std::vector<TypeParam>({4, 5, 8, 9, 6, 7}));
 

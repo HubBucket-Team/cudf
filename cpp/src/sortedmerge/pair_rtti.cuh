@@ -7,6 +7,7 @@
 #include <cuda_runtime.h>
 #include <cudf.h>
 
+#include <bitmask/legacy_bitmask.hpp>
 #include <utilities/cudf_utils.h>
 
 template <class IndexT>
