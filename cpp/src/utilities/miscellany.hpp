@@ -43,46 +43,7 @@ extern "C" {
 #endif
 
 namespace cudf {
-
-constexpr inline bool is_an_integer(gdf_dtype element_type)
-{
-    return
-        element_type == GDF_INT8  or
-        element_type == GDF_INT16 or
-        element_type == GDF_INT32 or
-        element_type == GDF_INT64;
-}
-
-constexpr bool is_nullable(const gdf_column& column)
-{
-    return column.valid != nullptr;
-}
-
-namespace detail {
-
-struct size_of_helper {
-    template <typename T>
-    constexpr int operator()() const { return sizeof(T); }
-};
-
-}
-
-constexpr std::size_t inline size_of(gdf_dtype element_type) {
-    return type_dispatcher(element_type, detail::size_of_helper{});
-}
-
-inline std::size_t width(const gdf_column& col)
-{
-    return size_of(col.dtype);
-}
-
-inline std::size_t data_size_in_bytes(const gdf_column& col)
-{
-    return col.size * width(col);
-}
-
 namespace util {
-
 namespace cuda {
 
 enum : unsigned { no_dynamic_shared_memory = 0 };
