@@ -88,6 +88,12 @@ void scatter(table const* source_table, gdf_index_type const scatter_map[],
  */
 void gather(table const* source_table, gdf_index_type const gather_map[],
                  table* destination_table);
-}  // namespace cudf
 
+
+
+gdf_error gather_random_samples(table const* source_table,
+                          table* sampled_data,
+                          gdf_size_type num_samples);
+
+}  // namespace cudf
 #endif  // COPYING_H
