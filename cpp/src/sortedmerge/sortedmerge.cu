@@ -102,8 +102,9 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
 
         gdf_column *output_col = output_cols[i];
 
-        const gdf_size_type total_valids =
-            total_size - (left_col->null_count + right_col->null_count);
+        output_col->null_count = left_col->null_count + right_col->null_count;
+
+        const gdf_size_type total_valids = total_size - output_col->null_count;
 
         cudaStatus = cudaMemset(output_col->valid, 0,
                                 gdf_get_num_chars_bitmask(total_size));
