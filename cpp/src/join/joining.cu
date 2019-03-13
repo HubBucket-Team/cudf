@@ -432,15 +432,15 @@ gdf_error construct_join_output_df(
         gdf_column_view(result_cols[i], nullptr, nullptr, join_size, lnonjoincol[i]->dtype);
         int col_width; get_column_byte_width(result_cols[i], &col_width);
         RMM_TRY( RMM_ALLOC((void**)&(result_cols[i]->data), col_width * join_size, 0) ); // TODO: non-default stream?
-        RMM_TRY( RMM_ALLOC((void**)&(result_cols[i]->valid), sizeof(gdf_valid_type)*gdf_get_num_chars_bitmask(join_size), 0) );
-        CUDA_TRY( cudaMemset(result_cols[i]->valid, 0, sizeof(gdf_valid_type)*gdf_get_num_chars_bitmask(join_size)) );
+        RMM_TRY( RMM_ALLOC((void**)&(result_cols[i]->valid), sizeof(gdf_valid_type)*gdf_valid_allocation_size(join_size), 0) );
+        CUDA_TRY( cudaMemset(result_cols[i]->valid, 0, sizeof(gdf_valid_type)*gdf_valid_allocation_size(join_size)) );
     }
     for (int i = right_table_begin; i < result_num_cols; ++i) {
         gdf_column_view(result_cols[i], nullptr, nullptr, join_size, rnonjoincol[i - right_table_begin]->dtype);
         int col_width; get_column_byte_width(result_cols[i], &col_width);
         RMM_TRY( RMM_ALLOC((void**)&(result_cols[i]->data), col_width * join_size, 0) ); // TODO: non-default stream?
-        RMM_TRY( RMM_ALLOC((void**)&(result_cols[i]->valid), sizeof(gdf_valid_type)*gdf_get_num_chars_bitmask(join_size), 0) );
-        CUDA_TRY( cudaMemset(result_cols[i]->valid, 0, sizeof(gdf_valid_type)*gdf_get_num_chars_bitmask(join_size)) );
+        RMM_TRY( RMM_ALLOC((void**)&(result_cols[i]->valid), sizeof(gdf_valid_type)*gdf_valid_allocation_size(join_size), 0) );
+        CUDA_TRY( cudaMemset(result_cols[i]->valid, 0, sizeof(gdf_valid_type)*gdf_valid_allocation_size(join_size)) );
     }
     //create joined output column data buffers
     for (int join_index = 0; join_index < num_cols_to_join; ++join_index) {
@@ -448,11 +448,10 @@ gdf_error construct_join_output_df(
         gdf_column_view(result_cols[i], nullptr, nullptr, join_size, left_cols[left_join_cols[join_index]]->dtype);
         int col_width; get_column_byte_width(result_cols[i], &col_width);
         RMM_TRY( RMM_ALLOC((void**)&(result_cols[i]->data), col_width * join_size, 0) ); // TODO: non-default stream?
-        RMM_TRY( RMM_ALLOC((void**)&(result_cols[i]->valid), sizeof(gdf_valid_type)*gdf_get_num_chars_bitmask(join_size), 0) );
-        CUDA_TRY( cudaMemset(result_cols[i]->valid, 0, sizeof(gdf_valid_type)*gdf_get_num_chars_bitmask(join_size)) );
+        RMM_TRY( RMM_ALLOC((void**)&(result_cols[i]->valid), sizeof(gdf_valid_type)*gdf_valid_allocation_size(join_size), 0) );
+        CUDA_TRY( cudaMemset(result_cols[i]->valid, 0, sizeof(gdf_valid_type)*gdf_valid_allocation_size(join_size)) );
     }
 
-    gdf_error err{GDF_SUCCESS};
 
     // If the join_type is an outer join, then indices for non-matches will be
     // -1, requiring bounds checking when gathering the result table
@@ -464,12 +463,9 @@ gdf_error construct_join_output_df(
       cudf::table left_destination_table(result_cols,
                                          num_left_cols - num_cols_to_join);
 
-      err = cudf::detail::gather(
-          &left_source_table,
-          static_cast<index_type const *>(left_indices->data),
-          &left_destination_table, check_bounds);
-
-      GDF_REQUIRE(GDF_SUCCESS == err, err);
+      cudf::detail::gather(&left_source_table,
+                           static_cast<index_type const *>(left_indices->data),
+                           &left_destination_table, check_bounds);
     }
 
     // Construct the right columns
@@ -478,12 +474,10 @@ gdf_error construct_join_output_df(
       cudf::table right_destination_table(result_cols + right_table_begin,
                                           num_right_cols - num_cols_to_join);
 
-      err = cudf::detail::gather(
-          &right_source_table,
-          static_cast<index_type const *>(right_indices->data),
-          &right_destination_table, check_bounds);
+      cudf::detail::gather(&right_source_table,
+                           static_cast<index_type const *>(right_indices->data),
+                           &right_destination_table, check_bounds);
 
-      GDF_REQUIRE(GDF_SUCCESS == err, err);
     }
 
     // Construct the joined columns
@@ -497,20 +491,16 @@ gdf_error construct_join_output_df(
       if (JoinType::FULL_JOIN == join_type) {
         cudf::table right_source_table(rjoincol.data(), rjoincol.size());
 
-        err = cudf::detail::gather(
+        cudf::detail::gather(
             &right_source_table,
             static_cast<index_type const *>(right_indices->data),
             &join_destination_table, check_bounds);
 
-        GDF_REQUIRE(GDF_SUCCESS == err, err);
-
       }
 
-      err = cudf::detail::gather(
-          &join_source_table,
-          static_cast<index_type const *>(left_indices->data),
-          &join_destination_table, check_bounds);
-      GDF_REQUIRE(GDF_SUCCESS == err, err);
+      cudf::detail::gather(&join_source_table,
+                           static_cast<index_type const *>(left_indices->data),
+                           &join_destination_table, check_bounds);
     }
 
     POP_RANGE();

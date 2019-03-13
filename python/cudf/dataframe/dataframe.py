@@ -284,6 +284,13 @@ class DataFrame(object):
         """
         return self._size
 
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        if method == '__call__' and 'sqrt' == ufunc.__name__:
+            from cudf import sqrt
+            return sqrt(self)
+        else:
+            return NotImplemented
+
     @property
     def empty(self):
         return not len(self)
@@ -416,7 +423,10 @@ class DataFrame(object):
     def _call_op(self, other, internal_fn, fn):
         result = DataFrame()
         result.set_index(self.index)
-        if isinstance(other, Sequence):
+        if internal_fn == '_unaryop':
+            for col in self._cols:
+                result[col] = self._cols[col]._unaryop(fn)
+        elif isinstance(other, Sequence):
             for k, col in enumerate(self._cols):
                 result[col] = getattr(self._cols[col], internal_fn)(
                         other[k],
@@ -1496,7 +1506,7 @@ class DataFrame(object):
 
         if left_index and right_index:
             df = df.drop(lhs.LEFT_RIGHT_INDEX_NAME)
-            df = df.set_index(lhs.index[df.index.values])
+            df = df.set_index(lhs.index[df.index.gpu_values])
         elif right_index and left_on:
             new_index = Series(lhs.index,
                                index=RangeIndex(0, len(lhs[left_on])))
@@ -1955,6 +1965,52 @@ class DataFrame(object):
             outdf[k] = self[k].replace(to_replace[k], value[k])
 
         return outdf
+
+    def fillna(self, value, method=None, axis=None, inplace=False, limit=None):
+        """Fill null values with ``value``.
+
+        Parameters
+        ----------
+        value : scalar, Series-like or dict
+            Value to use to fill nulls. If Series-like, null values
+            are filled with values in corresponding indices.
+            A dict can be used to provide different values to fill nulls
+            in different columns.
+
+        Returns
+        -------
+        result : DataFrame
+            Copy with nulls filled.
+
+        Examples
+        --------
+        >>> import cudf
+        >>> gdf = cudf.DataFrame({'a': [1, 2, None], 'b': [3, None, 5]})
+        >>> gdf.fillna(4).to_pandas()
+        a  b
+        0  1  3
+        1  2  4
+        2  4  5
+        >>> gdf.fillna({'a': 3, 'b': 4}).to_pandas()
+        a  b
+        0  1  3
+        1  2  4
+        2  3  5
+        """
+        if inplace:
+            outdf = {}  # this dict will just hold Nones
+        else:
+            outdf = self.copy()
+
+        if not is_dict_like(value):
+            value = dict.fromkeys(self.columns, value)
+
+        for k in value:
+            outdf[k] = self[k].fillna(value[k], method=method, axis=axis,
+                                      inplace=inplace, limit=limit)
+
+        if not inplace:
+            return outdf
 
     def to_pandas(self):
         """

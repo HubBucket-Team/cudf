@@ -22,12 +22,74 @@
 #include "tests/utilities/cudf_test_fixtures.h"
 #include "tests/utilities/cudf_test_utils.cuh"
 #include "types.hpp"
+#include <random>
 
 template <typename T>
 struct ScatterTest : GdfTest {};
 
-using test_types = ::testing::Types<int8_t, int16_t, int32_t, int64_t, float, double>;
+using test_types =
+    ::testing::Types<int8_t, int16_t, int32_t, int64_t, float, double>;
 TYPED_TEST_CASE(ScatterTest, test_types);
+
+
+TYPED_TEST(ScatterTest, DtypeMistach){
+  constexpr gdf_size_type source_size{1000};
+  constexpr gdf_size_type destination_size{1000};
+
+  cudf::test::column_wrapper<int32_t> source{source_size};
+  cudf::test::column_wrapper<float> destination{destination_size};
+
+  gdf_column * raw_source = source.get();
+  gdf_column * raw_destination = destination.get();
+
+  cudf::table source_table{&raw_source, 1};
+  cudf::table destination_table{&raw_destination, 1};
+
+  rmm::device_vector<gdf_index_type> scatter_map(source_size);
+
+  EXPECT_THROW(cudf::scatter(&source_table, scatter_map.data().get(),
+                             &destination_table), cudf::logic_error);
+}
+
+TYPED_TEST(ScatterTest, DestMissingValid){
+  constexpr gdf_size_type source_size{1000};
+  constexpr gdf_size_type destination_size{1000};
+
+  cudf::test::column_wrapper<TypeParam> source{source_size, true};
+  cudf::test::column_wrapper<TypeParam> destination{destination_size, false};
+
+  gdf_column * raw_source = source.get();
+  gdf_column * raw_destination = destination.get();
+
+  cudf::table source_table{&raw_source, 1};
+  cudf::table destination_table{&raw_destination, 1};
+
+  rmm::device_vector<gdf_index_type> scatter_map(source_size);
+
+  EXPECT_THROW(cudf::scatter(&source_table, scatter_map.data().get(),
+                             &destination_table), cudf::logic_error);
+}
+
+TYPED_TEST(ScatterTest, NumColumnsMismatch){
+  constexpr gdf_size_type source_size{1000};
+  constexpr gdf_size_type destination_size{1000};
+
+  cudf::test::column_wrapper<TypeParam> source0{source_size, true};
+  cudf::test::column_wrapper<TypeParam> source1{source_size, true};
+  cudf::test::column_wrapper<TypeParam> destination{destination_size, false};
+
+  std::vector<gdf_column*> source_cols{source0.get(), source1.get()};
+
+  gdf_column * raw_destination = destination.get();
+
+  cudf::table source_table{source_cols.data(), 2};
+  cudf::table destination_table{&raw_destination, 1};
+
+  rmm::device_vector<gdf_index_type> scatter_map(source_size);
+
+  EXPECT_THROW(cudf::scatter(&source_table, scatter_map.data().get(),
+                             &destination_table), cudf::logic_error);
+}
 
 TYPED_TEST(ScatterTest, IdentityTest) {
   constexpr gdf_size_type source_size{1000};
@@ -40,7 +102,8 @@ TYPED_TEST(ScatterTest, IdentityTest) {
   thrust::device_vector<gdf_index_type> scatter_map(source_size);
   thrust::sequence(scatter_map.begin(), scatter_map.end());
 
-  cudf::test::column_wrapper<TypeParam> destination_column(destination_size, true);
+  cudf::test::column_wrapper<TypeParam> destination_column(destination_size,
+                                                           true);
 
   gdf_column* raw_source = source_column.get();
   gdf_column* raw_destination = destination_column.get();
@@ -48,8 +111,8 @@ TYPED_TEST(ScatterTest, IdentityTest) {
   cudf::table source_table{&raw_source, 1};
   cudf::table destination_table{&raw_destination, 1};
 
-  gdf_error status = cudf::scatter(&source_table, scatter_map.data().get(), &destination_table);
-  EXPECT_EQ(GDF_SUCCESS, status);
+  EXPECT_NO_THROW(cudf::scatter(&source_table, scatter_map.data().get(),
+                                &destination_table));
 
   EXPECT_TRUE(source_column == destination_column);
 }
@@ -68,7 +131,8 @@ TYPED_TEST(ScatterTest, ReverseIdentityTest) {
   std::reverse(host_scatter_map.begin(), host_scatter_map.end());
   thrust::device_vector<gdf_index_type> scatter_map(host_scatter_map);
 
-  cudf::test::column_wrapper<TypeParam> destination_column(destination_size, true);
+  cudf::test::column_wrapper<TypeParam> destination_column(destination_size,
+                                                           true);
 
   gdf_column* raw_source = source_column.get();
   gdf_column* raw_destination = destination_column.get();
@@ -76,8 +140,8 @@ TYPED_TEST(ScatterTest, ReverseIdentityTest) {
   cudf::table source_table{&raw_source, 1};
   cudf::table destination_table{&raw_destination, 1};
 
-  gdf_error status = cudf::scatter(&source_table, scatter_map.data().get(), &destination_table);
-  EXPECT_EQ(GDF_SUCCESS, status);
+  EXPECT_NO_THROW(cudf::scatter(&source_table, scatter_map.data().get(),
+                                &destination_table));
 
   // Expected result is the reversal of the source column
   std::vector<TypeParam> expected_data;
@@ -114,7 +178,8 @@ TYPED_TEST(ScatterTest, AllNull) {
   std::shuffle(host_scatter_map.begin(), host_scatter_map.end(), g);
   thrust::device_vector<gdf_index_type> scatter_map(host_scatter_map);
 
-  cudf::test::column_wrapper<TypeParam> destination_column(destination_size, true);
+  cudf::test::column_wrapper<TypeParam> destination_column(destination_size,
+                                                           true);
 
   gdf_column* raw_source = source_column.get();
   gdf_column* raw_destination = destination_column.get();
@@ -122,8 +187,8 @@ TYPED_TEST(ScatterTest, AllNull) {
   cudf::table source_table{&raw_source, 1};
   cudf::table destination_table{&raw_destination, 1};
 
-  gdf_error status = cudf::scatter(&source_table, scatter_map.data().get(), &destination_table);
-  EXPECT_EQ(GDF_SUCCESS, status);
+  EXPECT_NO_THROW(cudf::scatter(&source_table, scatter_map.data().get(),
+                                &destination_table));
 
   // Copy result of destination column to host
   std::vector<TypeParam> result_data;
@@ -159,7 +224,8 @@ TYPED_TEST(ScatterTest, EveryOtherNull) {
   }
   thrust::device_vector<gdf_index_type> scatter_map(host_scatter_map);
 
-  cudf::test::column_wrapper<TypeParam> destination_column(destination_size, true);
+  cudf::test::column_wrapper<TypeParam> destination_column(destination_size,
+                                                           true);
 
   gdf_column* raw_source = source_column.get();
   gdf_column* raw_destination = destination_column.get();
@@ -167,8 +233,8 @@ TYPED_TEST(ScatterTest, EveryOtherNull) {
   cudf::table source_table{&raw_source, 1};
   cudf::table destination_table{&raw_destination, 1};
 
-  gdf_error status = cudf::scatter(&source_table, scatter_map.data().get(), &destination_table);
-  EXPECT_EQ(GDF_SUCCESS, status);
+  EXPECT_NO_THROW(cudf::scatter(&source_table, scatter_map.data().get(),
+                                &destination_table));
 
   // Copy result of destination column to host
   std::vector<TypeParam> result_data;
