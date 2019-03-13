@@ -210,6 +210,13 @@ class Series(object):
         """
         return len(self._column)
 
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        if method == '__call__' and 'sqrt' == ufunc.__name__:
+            from cudf import sqrt
+            return sqrt(self)
+        else:
+            return NotImplemented
+
     @property
     def empty(self):
         return not len(self)
@@ -402,11 +409,14 @@ class Series(object):
     def __rmul__(self, other):
         return self._rbinaryop(other, 'mul')
 
+    def __mod__(self, other):
+        return self._binaryop(other, 'mod')
+
+    def __rmod__(self, other):
+        return self._rbinaryop(other, 'mod')
+
     def __pow__(self, other):
-        if other == 2:
-            return self * self
-        else:
-            return NotImplemented
+        return self._binaryop(other, 'pow')
 
     def __floordiv__(self, other):
         return self._binaryop(other, 'floordiv')
@@ -542,10 +552,20 @@ class Series(object):
         data = self._column.masked_assign(value, mask)
         return self._copy_construct(data=data)
 
-    def fillna(self, value, method=None, limit=None, axis=None):
+    def fillna(self, value, method=None, axis=None, inplace=False, limit=None):
         """Fill null values with ``value``.
 
-        Returns a copy with null filled.
+        Parameters
+        ----------
+        value : scalar or Series-like
+            Value to use to fill nulls. If Series-like, null values
+            are filled with the values in corresponding indices of the
+            given Series.
+
+        Returns
+        -------
+        result : Series
+            Copy with nulls filled.
         """
         if method is not None:
             raise NotImplementedError("The method keyword is not supported")
@@ -554,9 +574,10 @@ class Series(object):
         if axis:
             raise NotImplementedError("The axis keyword is not supported")
 
-        data = self._column.fillna(value)
+        data = self._column.fillna(value, inplace=inplace)
 
-        return self._copy_construct(data=data)
+        if not inplace:
+            return self._copy_construct(data=data)
 
     def to_array(self, fillna=None):
         """Get a dense numpy array for the data.
