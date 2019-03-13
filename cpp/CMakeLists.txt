@@ -210,6 +210,7 @@ add_library(cudf SHARED
             src/replace/replace.cu
             src/reductions/scan.cu
             src/transpose/transpose.cu
+            src/search/multisearch.cu
             src/unary/unary_ops.cu
             # src/windowed/windowed_ops.cu ... this is broken
             src/io/convert/csr/cudf_to_csr.cu
@@ -219,6 +220,7 @@ add_library(cudf SHARED
             src/io/comp/cpu_unbz2.cpp
             src/utilities/cuda_utils.cu
             src/utilities/error_utils.cpp
+            src/utilities/column_utils.cpp
             src/utilities/nvtx/nvtx_utils.cpp
             src/copying/gather.cu
             src/copying/scatter.cu

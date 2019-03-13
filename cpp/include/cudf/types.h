@@ -1,8 +1,6 @@
 #pragma once
 
 // TODO: Update to use fixed width types when CFFI goes away
-typedef int gdf_size_type; ///< Limits the maximum size of a gdf_column to 2^31-1
-typedef gdf_size_type gdf_index_type;
 typedef unsigned char gdf_valid_type;
 typedef	long	gdf_date64;
 typedef	int		gdf_date32;
@@ -10,6 +8,11 @@ typedef	int		gdf_category;
 typedef	long	gdf_timestamp;
 typedef signed char gdf_bool;
 
+
+typedef int gdf_size_type; /**< Limits the maximum size of a gdf_column to 2^31-1 */
+typedef gdf_size_type gdf_index_type;
+typedef gdf_size_type gdf_num_columns_type;
+typedef gdf_index_type gdf_column_index_type;
 
 
  /**
@@ -20,6 +23,7 @@ typedef enum {
     GDF_INT8,
     GDF_INT16,
     GDF_INT32,
+    GDF_SIZE_TYPE = GDF_INT32,
     GDF_INT64,
     GDF_FLOAT32,
     GDF_FLOAT64,

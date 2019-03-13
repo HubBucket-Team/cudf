@@ -21,7 +21,8 @@
 #include <climits>
 #include <cstdint>
 
-#include "cudf_utils.h"
+#include <utilities/cudf_utils.h>
+#include <utilities/miscellany.hpp>
 
 namespace gdf {
 namespace util {
@@ -30,13 +31,18 @@ namespace util {
 static constexpr int ValidSize = 32;
 using ValidType = uint32_t;
 
-
-
 template <typename T>
 constexpr inline std::size_t size_in_bits() { return sizeof(T) * CHAR_BIT; }
 
-template <typename T>
-constexpr inline std::size_t size_in_bits(const T&) { return size_in_bits<T>(); }
+// Instead of this function, use gdf_valid_allocation_size from legacy_bitmask.hpp
+//__host__ __device__ __forceinline__
+//  size_t
+//  valid_size(size_t column_length)
+//{
+//  const size_t n_ints = (column_length / ValidSize) + ((column_length % ValidSize) ? 1 : 0);
+//  return n_ints * sizeof(ValidType);
+//}
+
 
 namespace detail {
 
@@ -103,6 +109,11 @@ constexpr CUDA_HOST_DEVICE_CALLABLE bool bit_is_set(const BitContainer* bits, Si
 {
     auto container_index = detail::bit_container_index<BitContainer, Size>(bit_index);
     return bit_is_set<BitContainer, Size>(bits[container_index], bit_index);
+}
+
+template <typename BitContainer, typename Size>
+inline gdf_size_type packed_bit_sequence_size_in_bytes (Size num_bits) {
+    return cudf::util::div_rounding_up_safe<Size>(num_bits, size_in_bits<BitContainer>());
 }
 
 

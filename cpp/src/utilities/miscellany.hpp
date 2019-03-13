@@ -15,8 +15,8 @@
  * limitations under the License.
  */
 
-#ifndef UTIL_MISCELLANY_HPP_
-#define UTIL_MISCELLANY_HPP_
+#ifndef UTILITIES_MISCELLANY_HPP_
+#define UTILITIES_MISCELLANY_HPP_
 
 // Code in this file should aventually be placed in finer-grained utility headers
 
@@ -28,7 +28,7 @@ extern "C" {
 
 #include <utilities/type_dispatcher.hpp>
 
-#ifndef NVCC
+#ifndef __NVCC__
 #ifndef __host__
 
 #define __host__
@@ -36,6 +36,10 @@ extern "C" {
 #define __forceinline__ inline
 
 #endif
+#endif
+
+#ifdef __CUDA_ARCH__
+#define DEVICE_SIDE_COMPILATION
 #endif
 
 namespace cudf {
@@ -250,21 +254,29 @@ clear_lower_bits_safe(
 // TODO: Use the cuda-api-wrappers library instead
 inline constexpr auto form_naive_1d_grid(
     int overall_num_elements,
-    int threads_per_block,
+    int num_threads_per_block,
     int elements_per_thread = 1)
 {
     struct one_dimensional_grid_params_t {
         int num_blocks;
-        int threads_per_block;
+        int num_threads_per_block;
     };
-    auto num_blocks = util::div_rounding_up_safe(overall_num_elements, elements_per_thread * threads_per_block);
-    return one_dimensional_grid_params_t { num_blocks, threads_per_block };
+    auto num_blocks = util::div_rounding_up_safe(
+        overall_num_elements,
+        elements_per_thread * num_threads_per_block);
+    return one_dimensional_grid_params_t { num_blocks, num_threads_per_block };
 }
 
+// The standard library version is not constexpr before C++20!
+template <typename T>
+constexpr __device__ __host__ void swap(T& lhs, T& rhs)
+{
+    T tmp { lhs };
+    lhs = rhs;
+    rhs = tmp;
+}
 
 } // namespace util
-
-
 
 } // namespace cudf
 
