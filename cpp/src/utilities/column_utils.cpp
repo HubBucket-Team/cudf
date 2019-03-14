@@ -48,12 +48,12 @@ bool have_matching_types(const gdf_column& validated_column_1, const gdf_column&
 {
     if (validated_column_1.dtype != validated_column_2.dtype) { return GDF_DTYPE_MISMATCH; }
     if (detail::logical_xor(is_nullable(validated_column_1), is_nullable(validated_column_2))) { return GDF_VALIDITY_MISSING; }
-    return GDF_SUCCESS;
+    return true;
 }
 
 bool have_matching_types(const gdf_column* validated_column_ptr_1, const gdf_column* validated_column_ptr_2)
 {
-    return have_matching_types(validated_column_ptr_1, validated_column_ptr_2);
+    return have_matching_types(*validated_column_ptr_1, *validated_column_ptr_2);
 }
 
 bool has_uniform_column_sizes(const gdf_column* const * validated_column_sequence, gdf_num_columns_type num_columns)

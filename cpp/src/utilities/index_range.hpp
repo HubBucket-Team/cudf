@@ -15,7 +15,8 @@
  * limitations under the License.
  */
 
-
+#include <type_traits>
+#include <iterator>
 
 
 #ifdef NVCC
@@ -31,32 +32,83 @@ namespace cudf {
 namespace util {
 
 /**
- * @brief A simplistic, unsafe, index range, without all of the standard library's
- * container frills (for now).
+ * @brief A super-simple index range - but meeting the stand library's container requirements,
+ * sort of (no real pointers or references since it's just a facade).
  *
- * @note Boost has an irange class, but let's not go there. C++ itself might get it
- * in 2020, but we don't support that.
+ * @note Boost has an irange class, but let's not go there.
  */
 template <typename I>
 struct index_range {
+    using value_type = I;
+    using reference = I;  // No references!
+    using const_reference = I;  // No references!
+    using difference_type = std::make_signed_t<I>;
+    using size_type = I;
+
     I start;  // first element which _may_ be the one we're after (i.e.
                           // the first greater or the first greater-or-equal); before
                           // this one, all elements are lower / lower-or-equal than our pivot
 
-    I end;    // first element after which _cannot_ _impossible_ element index
+    I end_;    // Arrgh, can't use `end` as a data member name, it's taken
 
-    constexpr __fhd__ I     middle()      const { return start + (end - start) / 2; }
-    constexpr __fhd__ I     last()        const { return end - 1; }
-    constexpr __fhd__ I     length()      const { return end - start; } // TODO: What if end < start?
+    constexpr __fhd__ I     middle()      const { return start + (end_ - start) / 2; }
+    constexpr __fhd__ I     last()        const { return end_ - 1; }
+    constexpr __fhd__ I     length()      const { return end_ - start; } // TODO: What if end_ < start?
     constexpr __fhd__ bool  is_empty()    const { return length() <= 0; }
+
+    // Why does the standard library like ambiguous phrases for method names?!
+    constexpr __fhd__ bool  empty()       const { return is_empty(); }
     constexpr __fhd__ bool  is_singular() const { return length() == 1; }
 
     constexpr __fhd__ void  drop_lower_half() { start = middle(); }
-    constexpr __fhd__ void  drop_upper_half() { end   = middle(); }
+    constexpr __fhd__ void  drop_upper_half() { end_   = middle(); }
 
-    static index_range constexpr __fhd__ trivial_empty() { return { 0, 0 }; }
-    static index_range constexpr __fhd__ singular(I index) { return { index, index+1 }; }
+    constexpr __fhd__ size_type max_size() const { return std::numeric_limits<difference_type>::max(); }
+
+    // named constructor idioms
+
+    static __fhd__ index_range constexpr trivial_empty() { return { 0, 0 }; }
+    static __fhd__ index_range constexpr singular(I index) { return { index, index+1 }; }
+
+    __fhd__ void swap(index_range& other) {
+        index_range tmp = other;
+        other = *this;
+        *this = tmp;
+    }
+
+    struct iterator {
+    public:
+        const index_range<I> range_;
+        I pos_;
+
+    public:
+        constexpr __fhd__ iterator(index_range<I> range, I pos) : range_(range), pos_(pos) { };
+        constexpr __fhd__ iterator(const iterator& other) = default;
+        constexpr __fhd__ iterator(iterator&& other) = default;
+        constexpr __fhd__ iterator& operator++() { if (pos_ < range_.end_) pos_++; return *this;}
+        constexpr __fhd__ iterator operator++(int) {iterator retval = *this; ++(*this); return retval;}
+        constexpr __fhd__ bool operator==(iterator other) const {return range_ == other.range_ and pos_ == other.pos_; }
+        constexpr __fhd__ bool operator!=(iterator other) const {return not (*this == other);}
+        constexpr __fhd__ I operator*() const {return pos_;} // Yeah, it's const anyway
+
+        // iterator traits
+        using value_type = typename index_range<I>::value_type;;
+        using difference_type = typename index_range<I>::difference_type;
+        using pointer = I*;
+        using reference = I;
+        using iterator_category = std::random_access_iterator_tag;
+    };
+    constexpr __fhd__ iterator begin() {return iterator(this, start);}
+    constexpr __fhd__ iterator end() {return iterator(this, end_);  }
+    constexpr __fhd__ iterator cbegin() {return begin(); }
+    constexpr __fhd__ iterator cend() {return end(); }
 };
+
+template <typename I>
+constexpr __fhd__ index_range<I> swap(index_range<I>& lhs, index_range<I>& rhs)
+{
+    return lhs.swap(rhs);
+}
 
 template <typename I>
 constexpr __fhd__ index_range<I> lower_half(index_range<I> range)
@@ -67,13 +119,13 @@ template <typename I>
 
 constexpr __fhd__ index_range<I> upper_half(index_range<I> range)
 {
-    return { range.middle(), range.end };
+    return { range.middle(), range.end_ };
 }
 
 template <typename I>
 constexpr __fhd__ index_range<I> strict_upper_half(index_range<I> range)
 {
-    return { range.middle() + 1, range.end };
+    return { range.middle() + 1, range.end_ };
 }
 
 template <typename I>
@@ -82,10 +134,10 @@ constexpr __fhd__ index_range<I> intersection(index_range<I> lhs, index_range<I>
     const auto& starts_first  { (lhs.start < rhs.start) ? lhs : rhs };
     const auto& starts_second { (lhs.start < rhs.start) ? rhs : lhs };
 
-    if (starts_first.end <= starts_second.start) {
+    if (starts_first.end_ <= starts_second.start) {
         return index_range<I>::trivial_empty();
     }
-    return { starts_second.start, starts_first.end };
+    return { starts_second.start, starts_first.end_ };
 }
 
 } // namespace util

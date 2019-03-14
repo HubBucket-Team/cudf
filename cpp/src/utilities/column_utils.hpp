@@ -41,7 +41,7 @@ namespace cudf {
 namespace detail {
 
 // This should go up into more general utility code...
-constexpr inline bool logical_xor(bool x, bool y) { return (x and not y) or (not x and y) ; }
+constexpr inline bool logical_xor(bool x, bool y) { return (x and (not y)) or ((not x) and y) ; }
 
 } // namespace detail
 

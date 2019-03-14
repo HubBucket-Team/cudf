@@ -96,7 +96,7 @@ nullness_subrange(
                 // Note the first valid is always within our range.
         }
         // Given our invariant, our range must now have only the first valid element's index
-        return { 0, transition_search_range.end };
+        return { 0, transition_search_range.end_ };
     }
     else {
         assert((first_is_valid and not last_is_valid) and "Invalid location of nulls in column");
@@ -111,7 +111,7 @@ nullness_subrange(
                 // Note the last valid is always within our range.
         };
         // Given our invariant, our range must now have only the first valid element's index
-        return { transition_search_range.end, range.end };
+        return { transition_search_range.end_, range.end_ };
     }
 }
 
@@ -124,7 +124,7 @@ nullness_subrange(
  * @note when this is run, we must have noticed that haystack records
  * before @p equality_range.start are less-or-equal than / less than the
  * needle - but we were using previous columns (in the haystack and needle) for that;
- * similarly, records at @p equality_range.end - 1 and later are greater than
+ * similarly, records at @p equality_range.end_ - 1 and later are greater than
  * the needle. It must be the case that the rest of the records in the range are
  * identical to the needle up until this column.
  *
@@ -152,8 +152,7 @@ __device__ index_range  equality_subrange(
     bool                                  nulls_appear_before_values
 )
 {
-    assert(range.end <= haystack_length and "Invalid range end");
-    assert(range.length() > 1 and "Range contraction should not be attempted for an empty range");
+    assert(not range.is_empty() and "Range contraction should not be attempted for an empty range");
 
     if (not value_is_valid) {
         // We could sure use a bit span class with support for unaligned starting bit right here and now...
@@ -171,7 +170,7 @@ __device__ index_range  equality_subrange(
     std::pair<const E*, const E*> result =
         cudf::util::equal_range(
             column + range.start,
-            column + range.end,
+            column + range.end_,
             value
         );
     return index_range {
@@ -228,7 +227,7 @@ __device__
 search(
     const void            * __restrict__ const * __restrict__  sorted_haystack_data,
     const gdf_valid_type  * __restrict__ const * __restrict__  sorted_haystack_validities,
-    const void            * __restrict__ const * __restrict__  needles,
+    const void            * __restrict__ const * __restrict__  needle_data,
     const gdf_valid_type  * __restrict__ const * __restrict__  needle_validities,
     const gdf_dtype       * __restrict__                       column_data_types,
     gdf_column_index_type                                      num_columns,
@@ -244,8 +243,13 @@ search(
     {
         if (potential_equality_range.is_empty()) { break; }
 
+        auto needle_column_validities = needle_validities[column_index];
+
         bool needle_record_element_is_valid =
-            gdf::util::bit_is_set(needle_validities[column_index], needle_index);
+            needle_column_validities == nullptr ?
+                true :
+                gdf::util::bit_is_set(needle_column_validities, needle_index);
+
 
         // Note:
         // We can't focus on just the bottom or the top of the range of equality
@@ -259,25 +263,20 @@ search(
             potential_equality_range,
             sorted_haystack_data[column_index],
             sorted_haystack_validities[column_index],
-            needles[column_index],
+            needle_data[column_index],
             needle_index,
             needle_record_element_is_valid,
             nulls_appear_before_values
         );
-        /*
-    gdf_index_type                        value_index,
-    bool                                  value_is_valid,
-    bool                                  nulls_appear_before_values
-)
-         */
+
     }
 
-    auto equality_range = potential_equality_range;
+    index_range equality_range { potential_equality_range };
         // The range of indices at which all column records are equal to the needle
 
     if (find_first_greater) {
-        auto found = equality_range.end < haystack_length;
-        return { found, equality_range.end };
+        auto found = equality_range.end_ < haystack_length;
+        return { found, equality_range.end_ };
     }
     if (equality_range.is_empty()) {
         return { false, haystack_length};
@@ -312,7 +311,7 @@ __global__ multisearch(
     gdf_valid_type        * __restrict__                       result_validities,
     const void            * __restrict__ const * __restrict__  sorted_haystack_data,
     const gdf_valid_type  * __restrict__ const * __restrict__  sorted_haystack_validities,
-    const void            * __restrict__ const * __restrict__  needles,
+    const void            * __restrict__ const * __restrict__  needle_data,
     const gdf_valid_type  * __restrict__ const * __restrict__  needle_validities,
     const gdf_dtype       * __restrict__                       column_data_types,
     gdf_column_index_type                                      num_columns,
@@ -332,9 +331,11 @@ __global__ multisearch(
     auto thread_needle_index = global_thread_index;
     // Ha ha, see what I did just there? thread-needle? Get it? Get it? :-)
 
+    if (thread_needle_index  >= num_needles) { return; }
+
     auto search_result = thread::search(
         sorted_haystack_data, sorted_haystack_validities,
-        needles, needle_validities,
+        needle_data, needle_validities,
         column_data_types,
         num_columns,
         haystack_length,
@@ -386,9 +387,9 @@ gdf_error validate_inputs(
     GDF_TRY ( validate(sorted_haystack, num_columns) );
     GDF_TRY ( validate(needles,         num_columns) );
 
+    GDF_REQUIRE(has_uniform_column_sizes(sorted_haystack, num_columns), GDF_INVALID_API_CALL);
     GDF_REQUIRE(has_uniform_column_sizes(needles, num_columns), GDF_INVALID_API_CALL);
-    GDF_REQUIRE(has_uniform_column_sizes(needles, num_columns), GDF_INVALID_API_CALL);
-    GDF_REQUIRE(have_matching_types(needles, sorted_haystack, num_columns), GDF_INVALID_API_CALL);
+    GDF_REQUIRE(have_matching_types(sorted_haystack, needles, num_columns), GDF_INVALID_API_CALL);
 
     GDF_TRY ( validate(result) );
     GDF_REQUIRE(result->dtype == GDF_SIZE_TYPE, GDF_INVALID_API_CALL);

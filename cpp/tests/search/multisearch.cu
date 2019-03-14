@@ -45,6 +45,14 @@ enum : bool {
 };
 
 
+template <typename T>
+using column_wrapper = cudf::test::column_wrapper<int>;
+
+enum : bool {
+    non_nullable = false,
+    nullable = true
+};
+
 // TODO: Make this templated on a tuple type, and use the gadget above to be able to work with the parameter packs directly.
 struct Multisearch : public GdfTest {
     std::default_random_engine randomness_generator;
@@ -95,3 +103,45 @@ TEST(Multisearch, fails_when_no_haystack_columns_provided)
     ASSERT_NE(result, GDF_SUCCESS);
 }
 
+TEST(Multisearch, succeeds_with_single_non_null_column_one_needle)
+{
+    using single_element_type = int;
+
+    gdf_column_index_type num_columns     { 1 };
+
+    // single_element_type uniform_value { 123 };
+    std::vector<single_element_type> haystack_data { 10, 20, 30, 40, 50 };
+    std::vector<single_element_type> needle_data { 20 };
+    std::vector<gdf_size_type> dummy_result_data { 1234567 };
+
+    auto single_haystack_column = cudf::test::column_wrapper<single_element_type>(haystack_data);
+    auto single_needle_column   = cudf::test::column_wrapper<single_element_type>(needle_data);
+//  auto results                = cudf::test::column_wrapper<gdf_size_type      >(num_needles,     non_nullable);
+    auto results                = cudf::test::column_wrapper<gdf_size_type>(dummy_result_data);
+
+//    single_haystack_column.print();
+//    single_needle_column.print();
+//    results.print();
+
+    gdf_column* haystack_columns[] = { single_haystack_column.get() };
+    gdf_column* needle_columns[]   = { single_needle_column.get()   };
+
+    gdf_error result;
+    ASSERT_NO_THROW(
+        result = gdf_multisearch(
+            results.get(),
+            &(haystack_columns[0]),
+            &(needle_columns[0]),
+            num_columns,
+            find_first_greater,
+            nulls_appear_before_values,
+            use_haystack_length_for_not_found);
+    );
+    ASSERT_EQ(result, GDF_SUCCESS);
+    auto results_on_host = results.to_host();
+    ASSERT_EQ(results.get()->valid, nullptr); // Just a sanity check really
+    ASSERT_EQ(std::get<0>(results_on_host).size(), size_t{1});
+    if (not std::get<0>(results_on_host).empty()) {
+        ASSERT_EQ(std::get<0>(results_on_host)[0], 2); // at position 2 we have 30, greater than 20.
+    }
+}
