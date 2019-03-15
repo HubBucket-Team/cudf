@@ -493,6 +493,46 @@ def test_string_join_key(str_data, str_data_raise, num_keys, how, how_raise):
         assert_eq(expect, got)
 
 
+@pytest.mark.parametrize('str_data_nulls', [
+    ['a', 'b', 'c'],
+    ['a', 'b', 'f', 'g'],
+    ['f', 'g', 'h', 'i', 'j'],
+    ['f', 'g', 'h'],
+    [None, None, None, None, None],
+    []
+])
+def test_string_join_key_nulls(str_data_nulls):
+    str_data = ['a', 'b', 'c', 'd', 'e']
+    other_data = [1, 2, 3, 4, 5]
+
+    other_data_nulls = [6, 7, 8, 9, 10][:len(str_data_nulls)]
+
+    pdf = pd.DataFrame()
+    gdf = DataFrame()
+    pdf['key'] = pd.Series(str_data, dtype='str')
+    gdf['key'] = Series(str_data, dtype='str')
+    pdf['vals'] = other_data
+    gdf['vals'] = other_data
+
+    pdf2 = pd.DataFrame()
+    gdf2 = DataFrame()
+    pdf2['key'] = pd.Series(str_data_nulls, dtype='str')
+    gdf2['key'] = Series(str_data_nulls, dtype='str')
+    pdf2['vals'] = pd.Series(other_data_nulls, dtype='int64')
+    gdf2['vals'] = Series(other_data_nulls, dtype='int64')
+
+    expect = pdf.merge(pdf2, on='key', how='left')
+    got = gdf.merge(gdf2, on='key', how='left')
+
+    if len(expect) == 0 and len(got) == 0:
+        expect = expect.reset_index(drop=True)
+        got = got[expect.columns]
+
+    expect["vals_y"] = expect["vals_y"].fillna(-1).astype('int64')
+
+    assert_eq(expect, got)
+
+
 @pytest.mark.parametrize('str_data', [
     [],
     ['a', 'b', 'c', 'd', 'e'],
@@ -533,6 +573,81 @@ def test_string_join_non_key(str_data, num_cols, how, how_raise):
             got = got[expect.columns]
 
         assert_eq(expect, got)
+
+
+@pytest.mark.parametrize('str_data_nulls', [
+    ['a', 'b', 'c'],
+    ['a', 'b', 'f', 'g'],
+    ['f', 'g', 'h', 'i', 'j'],
+    ['f', 'g', 'h'],
+    [None, None, None, None, None],
+    []
+])
+def test_string_join_non_key_nulls(str_data_nulls):
+    str_data = ['a', 'b', 'c', 'd', 'e']
+    other_data = [1, 2, 3, 4, 5]
+
+    other_data_nulls = [6, 7, 8, 9, 10][:len(str_data_nulls)]
+
+    pdf = pd.DataFrame()
+    gdf = DataFrame()
+    pdf['vals'] = pd.Series(str_data, dtype='str')
+    gdf['vals'] = Series(str_data, dtype='str')
+    pdf['key'] = other_data
+    gdf['key'] = other_data
+
+    pdf2 = pd.DataFrame()
+    gdf2 = DataFrame()
+    pdf2['vals'] = pd.Series(str_data_nulls, dtype='str')
+    gdf2['vals'] = Series(str_data_nulls, dtype='str')
+    pdf2['key'] = pd.Series(other_data_nulls, dtype='int64')
+    gdf2['key'] = Series(other_data_nulls, dtype='int64')
+
+    expect = pdf.merge(pdf2, on='key', how='left')
+    got = gdf.merge(gdf2, on='key', how='left')
+
+    if len(expect) == 0 and len(got) == 0:
+        expect = expect.reset_index(drop=True)
+        got = got[expect.columns]
+
+    assert_eq(expect, got)
+
+
+def test_string_join_values_nulls():
+    left_dict = [
+        {'b': 'MATCH 1', 'a': 1.},
+        {'b': 'MATCH 1', 'a': 1.},
+        {'b': 'LEFT NO MATCH 1', 'a': -1.},
+        {'b': 'MATCH 2', 'a': 2.},
+        {'b': 'MATCH 2', 'a': 2.},
+        {'b': 'MATCH 1', 'a': 1.},
+        {'b': 'MATCH 1', 'a': 1.},
+        {'b': 'MATCH 2', 'a': 2.},
+        {'b': 'MATCH 2', 'a': 2.},
+        {'b': 'LEFT NO MATCH 2', 'a': -2.},
+        {'b': 'MATCH 3', 'a': 3.},
+        {'b': 'MATCH 3', 'a': 3.},
+    ]
+
+    right_dict = [
+        {'b': 'RIGHT NO MATCH 1', 'c': -1.},
+        {'b': 'MATCH 3', 'c': 3.},
+        {'b': 'MATCH 2', 'c': 2.},
+        {'b': 'RIGHT NO MATCH 2', 'c': -2.},
+        {'b': 'RIGHT NO MATCH 3', 'c': -3.},
+        {'b': 'MATCH 1', 'c': 1.}
+    ]
+
+    left_pdf = pd.DataFrame(left_dict)
+    right_pdf = pd.DataFrame(right_dict)
+
+    left_gdf = DataFrame.from_pandas(left_pdf)
+    right_gdf = DataFrame.from_pandas(right_pdf)
+
+    expect = left_pdf.merge(right_pdf, how='left', on='b')
+    got = left_gdf.merge(right_gdf, how='left', on='b')
+
+    assert_eq(expect, got)
 
 
 @pytest.mark.parametrize('str_data,str_data_raise', [
@@ -621,3 +736,40 @@ def test_string_groupby_non_key(str_data, str_data_raise, num_cols):
                 expect[i] = expect[i].astype('str')
 
         assert_eq(expect, got)
+
+
+def test_string_groupby_key_index():
+    str_data = ['a', 'b', 'c', 'd', 'e']
+    other_data = [1, 2, 3, 4, 5]
+
+    pdf = pd.DataFrame()
+    gdf = DataFrame()
+    pdf['a'] = pd.Series(str_data, dtype="str")
+    gdf['a'] = Series(str_data, dtype="str")
+    pdf['b'] = other_data
+    gdf['b'] = other_data
+
+    expect = pdf.groupby('a').count()
+    with pytest.raises(
+        NotImplementedError,
+        match="Strings are not yet supported in the index"
+    ):
+        got = gdf.groupby('a').count()
+
+        assert_eq(expect, got)
+
+
+@pytest.mark.parametrize('scalar', [
+    'a',
+    None
+])
+def test_string_set_scalar(scalar):
+    pdf = pd.DataFrame()
+    pdf['a'] = [1, 2, 3, 4, 5]
+    gdf = DataFrame.from_pandas(pdf)
+
+    pdf['b'] = "a"
+    gdf['b'] = "a"
+
+    assert_eq(pdf['b'], gdf['b'])
+    assert_eq(pdf, gdf)

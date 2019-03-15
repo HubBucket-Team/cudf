@@ -14,16 +14,17 @@
  * limitations under the License.
  */
 
-#include "gtest/gtest.h"
-#include "gmock/gmock.h"
+ #include "gtest/gtest.h"
+ #include "gmock/gmock.h"
+ 
+ #include "cuda_profiler_api.h"
+ 
+ #include "tests/utilities/cudf_test_utils.cuh"
+ #include "tests/utilities/cudf_test_fixtures.h"
+ #include "bitmask/BitMask.cuh"
+ 
+ #include <chrono>
 
-#include "cuda_profiler_api.h"
-
-#include "tests/utilities/cudf_test_utils.cuh"
-#include "tests/utilities/cudf_test_fixtures.h"
-#include "bitmask/BitMask.cuh"
-
-#include <chrono>
 
 struct BitMaskTest : public GdfTest {};
 

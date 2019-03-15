@@ -3,22 +3,21 @@
 #define GDF_TEST_UTILS
 
 #include <cudf.h>
-#include <cudf/functions.h>
 
 #include <thrust/functional.h>
 #include <thrust/device_ptr.h>
 #include <thrust/iterator/counting_iterator.h>
-#include "utilities/type_dispatcher.hpp"
+#include <utilities/type_dispatcher.hpp>
 
 #include <rmm/rmm.h>
 
+#include <gtest/gtest.h>
+
 #include <iostream>
-#include <functional>
 #include <string>
 #include <functional>
 #include <vector>
 #include <tuple>
-#include <random>
 
 inline auto get_number_of_bytes_for_valid (size_t column_size) -> size_t {
     return sizeof(gdf_valid_type) * (column_size + GDF_VALID_BITSIZE - 1) / GDF_VALID_BITSIZE;

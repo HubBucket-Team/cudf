@@ -757,9 +757,13 @@ class DataFrame(object):
         SCALAR = np.isscalar(col)
 
         if len(self) > 0 and len(series) == 1 and SCALAR:
-            arr = rmm.device_array(shape=len(index), dtype=series.dtype)
-            cudautils.gpu_fill_value.forall(arr.size)(arr, col)
-            return Series(arr)
+            if series.dtype == np.dtype("object"):
+                gather_map = cudautils.zeros(len(index), 'int32')
+                return series[gather_map]
+            else:
+                arr = rmm.device_array(shape=len(index), dtype=series.dtype)
+                cudautils.gpu_fill_value.forall(arr.size)(arr, col)
+                return Series(arr)
         elif len(self) > 0 and len(sind) != len(index):
             raise ValueError('Length of values does not match index length')
         return col
@@ -1328,7 +1332,7 @@ class DataFrame(object):
         else:
             lsuffix, rsuffix = suffixes
 
-        if left_on and right_on:
+        if left_on and right_on and left_on != right_on:
             raise NotImplementedError("left_on='x', right_on='y' not supported"
                                       "in CUDF at this time.")
 
@@ -1374,6 +1378,11 @@ class DataFrame(object):
         # Essential parameters
         if on:
             on = [on] if isinstance(on, str) else list(on)
+        if left_on:
+            left_on = [left_on] if isinstance(left_on, str) else list(left_on)
+        if right_on:
+            right_on = ([right_on] if isinstance(right_on, str)
+                        else list(right_on))
 
         # Pandas inconsistency warning
         if len(lhs) == 0 and len(lhs.columns) > len(rhs.columns) and\
@@ -1433,14 +1442,11 @@ class DataFrame(object):
                 f_n = fix_name(name, rsuffix)
                 col_cats[f_n] = rhs[name].cat.categories
 
-        if right_on and left_on:
-            raise NotImplementedError("merge(left_on='x', right_on='y' not"
-                                      "supported by CUDF at this time.")
         if left_index and right_on:
-            lhs[right_on] = lhs.index
+            lhs[right_on[0]] = lhs.index
             left_on = right_on
         elif right_index and left_on:
-            rhs[left_on] = rhs.index
+            rhs[left_on[0]] = rhs.index
             right_on = left_on
 
         if on:
@@ -1476,10 +1482,13 @@ class DataFrame(object):
                         if isinstance(cols[on_idx], nvstrings.nvstrings):
                             df[key] = cols[on_idx]
                         else:
+                            mask = None
+                            if valids[on_idx] is not None:
+                                mask = Buffer(valids[on_idx])
                             df[key] = columnops.build_column(
                                     Buffer(cols[on_idx]),
                                     dtype=cols[on_idx].dtype,
-                                    mask=Buffer(valids[on_idx]),
+                                    mask=mask,
                                     categories=categories,
                             )
             else:  # not an `on`-column, `cpp_join` returns these after `on`
@@ -1492,10 +1501,13 @@ class DataFrame(object):
                 if isinstance(cols[left_column_idx], nvstrings.nvstrings):
                     df[left_name] = cols[left_column_idx]
                 else:
+                    mask = None
+                    if valids[left_column_idx] is not None:
+                        mask = Buffer(valids[left_column_idx])
                     df[left_name] = columnops.build_column(
                             Buffer(cols[left_column_idx]),
                             dtype=cols[left_column_idx].dtype,
-                            mask=Buffer(valids[left_column_idx]),
+                            mask=mask,
                             categories=categories,
                     )
         rhs_column_idx = len(lhs.columns)
@@ -1508,10 +1520,13 @@ class DataFrame(object):
                 if isinstance(cols[rhs_column_idx], nvstrings.nvstrings):
                     df[rhs_name] = cols[rhs_column_idx]
                 else:
+                    mask = None
+                    if valids[rhs_column_idx] is not None:
+                        mask = Buffer(valids[rhs_column_idx])
                     df[rhs_name] = columnops.build_column(
                             Buffer(cols[rhs_column_idx]),
                             dtype=cols[rhs_column_idx].dtype,
-                            mask=Buffer(valids[rhs_column_idx]),
+                            mask=mask,
                             categories=categories,
                     )
                 rhs_column_idx = rhs_column_idx + 1
@@ -1521,14 +1536,14 @@ class DataFrame(object):
             df = df.set_index(lhs.index[df.index.gpu_values])
         elif right_index and left_on:
             new_index = Series(lhs.index,
-                               index=RangeIndex(0, len(lhs[left_on])))
-            indexed = lhs[left_on][df[left_on]-1]
+                               index=RangeIndex(0, len(lhs[left_on[0]])))
+            indexed = lhs[left_on[0]][df[left_on[0]]-1]
             new_index = new_index[indexed-1]
             df.index = new_index
         elif left_index and right_on:
             new_index = Series(rhs.index,
-                               index=RangeIndex(0, len(rhs[right_on])))
-            indexed = rhs[right_on][df[right_on]-1]
+                               index=RangeIndex(0, len(rhs[right_on[0]])))
+            indexed = rhs[right_on[0]][df[right_on[0]]-1]
             new_index = new_index[indexed-1]
             df.index = new_index
 

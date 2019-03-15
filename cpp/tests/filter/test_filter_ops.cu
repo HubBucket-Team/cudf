@@ -16,20 +16,20 @@
  * limitations under the License.
  */
 
-#include "gtest/gtest.h"
-#include <iostream>
-#include <cudf.h>
-#include <cudf/functions.h>
-#include <thrust/functional.h>
-#include <thrust/device_ptr.h>
-#include <thrust/execution_policy.h>
-#include <cuda_runtime.h>
-#include <tuple>
-#include "utilities/miscellany.hpp"
-#include "helper/utils.cuh"
-#include "tests/utilities/cudf_test_fixtures.h"
-#include "tests/utilities/cudf_test_utils.cuh"
-#include "tests/utilities/valid_vectors.h"
+ #include "gtest/gtest.h"
+ #include <iostream>
+ #include <cudf.h>
+ #include <cudf/functions.h>
+ #include <thrust/functional.h>
+ #include <thrust/device_ptr.h>
+ #include <thrust/execution_policy.h>
+ #include <cuda_runtime.h>
+ #include <tuple>
+ #include "utilities/miscellany.hpp"
+ #include "helper/utils.cuh"
+ #include "tests/utilities/cudf_test_fixtures.h"
+ #include "tests/utilities/cudf_test_utils.cuh"
+ #include "tests/utilities/valid_vectors.h"
 
 // Note: A few fixed lengths are not sufficient to test gdf_apply_boolean_mask.
 // Multiple lengths are necessary to cover the large number of cases

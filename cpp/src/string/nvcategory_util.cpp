@@ -15,14 +15,16 @@ namespace {
 
       for(int column_index = 1; column_index < num_columns; column_index++){
         NVCategory * temp = combined_category;
-        combined_category = combined_category->merge_and_remap(
-            * static_cast<NVCategory *>(
-                input_columns[column_index]->dtype_info.category));
-        if(column_index > 1){
-          NVCategory::destroy(temp);
+        if(input_columns[column_index]->size > 0){
+          combined_category = combined_category->merge_and_remap(
+              * static_cast<NVCategory *>(
+                  input_columns[column_index]->dtype_info.category));
+          if(column_index > 1){
+            NVCategory::destroy(temp);
+          }
         }
       }
-      if(num_columns == 1){
+      if(combined_category == static_cast<NVCategory *>(input_columns[0]->dtype_info.category)){
         return combined_category->copy();
       }else{
         return combined_category;
@@ -73,9 +75,12 @@ gdf_error nvcategory_gather(gdf_column * column, NVCategory * nv_category){
       NVStrings* strs = NVStrings::create_from_array(&empty,1);
       nv_category = nv_category->add_keys_and_remap(*strs);
 
-      //indices were modified to increase all by 1, we are praying to the universe that null is always at index 0 for this to work
-      thrust::device_ptr<nv_category_index_type> indices = thrust::device_pointer_cast(static_cast<nv_category_index_type*>(column->data));
-      thrust::transform(thrust::cuda::par,indices,indices+column->size(),thrust::make_constant_iterator(1),indices, thrust::plus<nv_category_index_type>());
+      gdf_scalar rhs;
+
+      rhs.data.si32 = 1;
+      rhs.is_valid = true;
+      rhs.dtype = GDF_STRING_CATEGORY;
+      gdf_binary_operation_v_s(column, column,  &rhs, GDF_ADD);
       destroy_category = true;
       null_index = nv_category->get_value(nullptr);
 
@@ -127,7 +132,7 @@ gdf_error validate_categories(gdf_column * input_columns[], int num_columns, gdf
   for (int i = 0; i < num_columns; ++i) {
     gdf_column* current_column = input_columns[i];
     GDF_REQUIRE(current_column != nullptr,GDF_DATASET_EMPTY);
-    GDF_REQUIRE(current_column->data != nullptr,GDF_DATASET_EMPTY);
+    GDF_REQUIRE((current_column->data != nullptr || current_column->size == 0),GDF_DATASET_EMPTY);
     GDF_REQUIRE(current_column->dtype == GDF_STRING_CATEGORY,GDF_UNSUPPORTED_DTYPE);
 
     total_count += input_columns[i]->size;
