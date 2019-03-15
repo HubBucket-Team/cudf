@@ -1052,3 +1052,5 @@ gdf_error gdf_digitize(gdf_column* col,
                        bool right,
                        gdf_index_type out_indices[]);
 
+
+gdf_error sync_column_categories(gdf_column * input_columns[],gdf_column * output_columns[], int num_columns);

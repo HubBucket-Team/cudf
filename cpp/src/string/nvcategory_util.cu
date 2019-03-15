@@ -32,7 +32,8 @@ gdf_error create_nvcategory_from_indices(gdf_column * column, NVCategory * nv_ca
 	//This is questionable behavior and should be reviewed by peers
 	//Smart pointers would be lovely here
 	if(column->dtype_info.category != nullptr){
-		NVCategory::destroy(column->dtype_info.category);
+		//Todo: uncomment after fixing memory tests
+		//NVCategory::destroy(column->dtype_info.category);
 	}
 	column->dtype_info.category = new_category;
 
