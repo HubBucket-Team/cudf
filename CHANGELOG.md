@@ -107,6 +107,7 @@
 - PR #1120 Return a `Series` (not a `Column`) from `Series.cat.set_categories()`
 - PR #1128 CSV Reader: The last data row does not need to be line terminated
 - PR #1183 Bump Arrow version to 0.12.1
+- PR #1208 Default to CXX11_ABI=ON
 
 ## Bug Fixes
 
@@ -155,7 +156,9 @@
 - PR #1145 Issue with .agg call on multi-column dataframes
 - PR #908 Some testing code cleanup
 - PR #1167 Fix issue with null_count not being set after inplace fillna()
+- PR #1184 Fix iloc performance regression
 - PR #1185 Support left_on/right_on and also on=str in merge
+- PR #1200 Fix allocating bitmasks with numba instead of rmm in allocate_mask function
 
 
 # cuDF 0.5.1 (05 Feb 2019)
