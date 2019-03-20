@@ -23,10 +23,13 @@ public:
     __device__ bool asc_desc_comparison(IndexT left_row,
                                         IndexT right_row) const {
         for (gdf_size_type i = 0; i < size_; i++) {
-            const bool left_is_valid =
-                gdf_is_valid(left_side_group_.valids[i], left_row);
-            const bool right_is_valid =
-                gdf_is_valid(right_side_group_.valids[i], right_row);
+            const gdf_valid_type *left_valids = left_side_group_.valids[i];
+            const gdf_valid_type *right_valids = right_side_group_.valids[i];
+
+            const bool left_is_valid = left_valids ?
+                gdf_is_valid(left_side_group_.valids[i], left_row) : true;
+            const bool right_is_valid = right_valids ?
+                gdf_is_valid(right_side_group_.valids[i], right_row) : true;
 
             if (!left_is_valid || !right_is_valid) { return true; }
 
