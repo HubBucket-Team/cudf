@@ -17,6 +17,8 @@
 
 
 #include <utilities/miscellany.hpp>
+#include <utilities/column_utils.hpp>
+#include <utility>
 
 namespace cudf {
 
@@ -32,6 +34,43 @@ memset(T* buffer, Size length, T value)
 
 } // namespace kernels
 
+namespace detail {
+
+void CUDART_CB set_null_count(cudaStream_t stream, cudaError_t status, void *user_data)
+{
+    auto column = reinterpret_cast<gdf_column&>(user_data);
+    column.null_count = column.size;
+}
+
+} // namespace detail
+
+gdf_error set_uniform_validity(
+    gdf_column&   column,
+    cudaStream_t  stream,
+    bool          make_elements_valid = true)
+{
+    if (make_elements_valid and not cudf::is_nullable(column)) { return GDF_SUCCESS; }
+    if (not make_elements_valid and not cudf::is_nullable(column)) { return GDF_VALIDITY_MISSING; }
+    auto validity_pseudocolumn_size =
+        gdf::util::packed_bit_sequence_size_in_bytes<uint32_t, gdf_size_type>(column.size);
+
+    enum { threads_per_block = 256 }; // TODO: Magic number... :-(
+    auto grid_config { cudf::util::form_naive_1d_grid(validity_pseudocolumn_size, threads_per_block) };
+    const gdf_valid_type fill_value { make_elements_valid ? gdf_valid_type{~0} : gdf_valid_type{0} };
+    kernels::memset<gdf_valid_type>
+        <<<
+            grid_config.num_threads_per_block,
+            grid_config.num_blocks,
+            cudf::util::cuda::no_dynamic_shared_memory,
+            stream
+        >>>
+        (column.valid, validity_pseudocolumn_size, fill_value);
+    CUDA_TRY ( cudaGetLastError() );
+    cudaStreamAddCallback(stream, detail::set_null_count, &column, 0);
+        // Notes: This is slightly risky, in that the caller must keep the gdf_column structure
+        // alive until the stream makes the callback. Oh well.
+    return GDF_SUCCESS;
+}
 
 
 // Notes:
@@ -47,12 +86,17 @@ gdf_error fill(
     E             value,
     bool          fill_with_nulls = false)
 {
-    auto null_indicator_column_size =
+    auto validity_pseudocolumn_size =
         gdf::util::packed_bit_sequence_size_in_bytes<uint32_t, gdf_size_type>(column.size);
-    if (fill_with_nulls) {
-        if (not cudf::is_nullable(column)) { return GDF_VALIDITY_MISSING; }
-        CUDA_TRY ( cudaMemsetAsync(column.valid, 0, null_indicator_column_size, stream) );
-        column.null_count = column.size;
+    if (cudf::is_nullable(column)) {
+        if (fill_with_nulls) {
+            auto make_all_elements_invalid = false;
+            set_uniform_validity(column, stream, make_all_elements_invalid );
+        }
+        else {
+            auto make_all_elements_invalid = true;
+            set_uniform_validity(column, stream, make_all_elements_invalid );
+        }
     }
     else {
         enum { threads_per_block = 256 }; // TODO: Magic number... :-(
@@ -66,10 +110,6 @@ gdf_error fill(
             >>>
             (static_cast<E*>(column.data), column.size, value);
         CUDA_TRY ( cudaGetLastError() );
-        if (cudf::is_nullable(column)) {
-            CUDA_TRY ( cudaMemsetAsync(column.valid, ~0, null_indicator_column_size, stream) );
-            column.null_count = 0;
-        }
     }
     return GDF_SUCCESS;
 }

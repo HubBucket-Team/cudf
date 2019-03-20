@@ -53,15 +53,15 @@ namespace thread {
  * at the end of the column.
  *
  * @param range We limit our search to the subcolumn this defines;
- * we cannot take iteraotrs since those are not defined for
- * bit-resolution data in a standard manner.
- * @param validity_column The column of validity bits / null indicators;
- * we don't search all of it, only the designated @p range of indices
+ *     we cannot take iteraotrs since those are not defined for
+ *     bit-resolution data in a standard manner.
+ * @param validity_pseudocolumn The pseudocolumn of validity bits / null indicators;
+ *     we don't search all of it, only the designated @p range of indices
  * @param nulls_appear_before_values If true, we may assume
- * @p validity_column begins with some NULLs (or none at all), and
- * at some point the NULLs end and only non-null values appear later.
- * When false, it's the same but for the _end_ of the column, i.e.
- * up to some point there are no nulls and then only nulls
+ *    @p validity_pseudocolumn begins with some NULLs (or none at all), and
+ *    at some point the NULLs end and only non-null values appear later.
+ *     When false, it's the same but for the _end_ of the column, i.e.
+ *     up to some point there are no nulls and then only nulls
  *
  * @note With a bit span class where the bit sequence does not
  * necessarily begin at a bit container boundary, we could have
@@ -73,45 +73,58 @@ namespace thread {
 __device__ index_range
 nullness_subrange(
     index_range             range,
-    const gdf_valid_type *  validity_column,
+    const gdf_valid_type *  validity_pseudocolumn,
     bool                    nulls_appear_before_values
 )
 {
-    auto first_is_valid = gdf::util::bit_is_set(validity_column, range.start);
-    auto last_is_valid = gdf::util::bit_is_set(validity_column, range.last());
+    if (validity_pseudocolumn == nullptr) {
+        return nulls_appear_before_values ?
+            index_range{range.start, range.start} :
+            index_range{range.end_, range.end_};
+    }
 
-    if (first_is_valid and last_is_valid) { return index_range::trivial_empty(); }
+    auto first_is_valid = gdf::util::bit_is_set(validity_pseudocolumn, range.start);
+    auto last_is_valid = gdf::util::bit_is_set(validity_pseudocolumn, range.last());
 
-    index_range transition_search_range = range;
+    if (first_is_valid and last_is_valid) {
+        return index_range::empty_at(range.start);
+    }
+
+    index_range transition_range = range;
+        // Invariant: The first non-null element must be part of the transition search range
+
+    // Apply bisection to the transition range
 
     if (nulls_appear_before_values) {
         assert((not first_is_valid and last_is_valid) and "Invalid location of nulls in column");
 
-        while (transition_search_range.length() > 1) {
-            auto middle_index = transition_search_range.middle();
-            auto middle_element_is_valid = gdf::util::bit_is_set(validity_column, middle_index);
-            transition_search_range = middle_element_is_valid ?
-                lower_half(transition_search_range) :
-                strict_upper_half(transition_search_range);
+        while (transition_range.length() > 1) {
+            auto middle_index = transition_range.middle();
+            auto middle_element_is_valid = gdf::util::bit_is_set(validity_pseudocolumn, middle_index);
+            transition_range = middle_element_is_valid ?
+                lower_half(transition_range) :
+                strict_upper_half(transition_range);
                 // Note the first valid is always within our range.
         }
         // Given our invariant, our range must now have only the first valid element's index
-        return { 0, transition_search_range.end_ };
+        assert(transition_range.length() == 1);
+        return { range.start, transition_range.start};
     }
     else {
-        assert((first_is_valid and not last_is_valid) and "Invalid location of nulls in column");
+//        assert((first_is_valid and not last_is_valid) and "Invalid location of nulls in column");
         // binary search for the transition from invalids to valids
 
-        while (transition_search_range.length() > 1) {
+        while (transition_range.length() > 1) {
             auto middle_index = range.middle();
-            auto middle_element_is_valid = gdf::util::bit_is_set(validity_column, middle_index);
-            transition_search_range = middle_element_is_valid ?
-                upper_half(transition_search_range) : // TODO: We could change the invariant and contract a bit more here
-                lower_half(transition_search_range);
+            auto middle_element_is_valid = gdf::util::bit_is_set(validity_pseudocolumn, middle_index);
+            transition_range = middle_element_is_valid ?
+                upper_half(transition_range) : // TODO: We could change the invariant and contract a bit more here
+                lower_half(transition_range);
                 // Note the last valid is always within our range.
         };
         // Given our invariant, our range must now have only the first valid element's index
-        return { transition_search_range.end_, range.end_ };
+        assert(transition_range.length() == 1);
+        return { transition_range.start, range.end_ };
     }
 }
 
@@ -154,13 +167,18 @@ __device__ index_range  equality_subrange(
 {
     assert(not range.is_empty() and "Range contraction should not be attempted for an empty range");
 
+    auto nullness_subrange_ = nullness_subrange(
+        range,
+        column_validity,
+        nulls_appear_before_values);
+
     if (not value_is_valid) {
         // We could sure use a bit span class with support for unaligned starting bit right here and now...
-        return nullness_subrange(
-            range,
-            column_validity,
-            nulls_appear_before_values);
+        return nullness_subrange_;
     }
+    auto valid_elements_subrange = nulls_appear_before_values ?
+        index_range{nullness_subrange_.end_, range.end_} :
+        index_range{range.start, nullness_subrange_.start};
 
     // At this point we know we're looking for a valid value. We don't need to reinvent the wheel
     // on this one - there's a standard library function to do just this: std::equal_range().
@@ -169,8 +187,8 @@ __device__ index_range  equality_subrange(
 
     std::pair<const E*, const E*> result =
         cudf::util::equal_range(
-            column + range.start,
-            column + range.end_,
+            column + valid_elements_subrange.start,
+            column + valid_elements_subrange.end_,
             value
         );
     return index_range {
@@ -250,7 +268,6 @@ search(
                 true :
                 gdf::util::bit_is_set(needle_column_validities, needle_index);
 
-
         // Note:
         // We can't focus on just the bottom or the top of the range of equality
         // for the next column's needle value, since we cannot know which part
@@ -268,7 +285,6 @@ search(
             needle_record_element_is_valid,
             nulls_appear_before_values
         );
-
     }
 
     index_range equality_range { potential_equality_range };
@@ -279,7 +295,7 @@ search(
         return { found, equality_range.end_ };
     }
     if (equality_range.is_empty()) {
-        return { false, haystack_length};
+        return { equality_range.end_ < haystack_length, equality_range.end_};
     }
     return { true, equality_range.start};
 }
@@ -346,8 +362,10 @@ __global__ multisearch(
     if (search_result.found) {
         result[thread_needle_index] = search_result.pos;
     }
-    else if (use_haystack_length_for_not_found) {
-        result[thread_needle_index] = haystack_length;
+    else {
+        if (use_haystack_length_for_not_found) {
+            result[thread_needle_index] = haystack_length;
+        }
     }
 
     if (result_validities == nullptr) { return; }
@@ -467,6 +485,9 @@ auto make_on_device_attributes(
  * A quick (as opposed to optimal) and somewhat-dirty implementation.
  *
  * Some Possible optimizations:
+ * - Split work into two kernels: The first determines the transition point
+ *   from null to non-null (or vice-versa) in each of the haystack columns, while the second
+ *   performs the multisearch with that knowledge available.
  * - Sort the needles, fully or partially. Or - assume they're sorted
  * - Don't perform the search for "duplicate needles" - do the search for each distinct needle,
  *   then replicate the result as necessary. Or - assume there are no duplicate needles.
@@ -477,6 +498,7 @@ auto make_on_device_attributes(
  *   instead of pairs-of-pointers... provided that doesn't impact performance much. Actually,
  *   that would be more of an aesthetic than a performance improvement; and it's not
  *   relevant only for this API function.
+ * - Count the nulls within the search kernel(s)
  *
  */
 gdf_error
@@ -531,8 +553,8 @@ gdf_multisearch(
 
     kernels::multisearch
     <<<
-        grid_config.num_threads_per_block,
         grid_config.num_blocks,
+        grid_config.num_threads_per_block,
         cudf::util::cuda::no_dynamic_shared_memory,
         stream
     >>>(
@@ -552,6 +574,13 @@ gdf_multisearch(
     );
 
     CUDA_TRY( cudaStreamSynchronize(stream) );
+
+    if (use_haystack_length_for_not_found) {
+        results->null_count = 0;
+    }
+    else {
+        GDF_TRY(set_null_count(results));
+    }
 
     return GDF_SUCCESS;
 }

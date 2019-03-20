@@ -1,0 +1,65 @@
+Test scenarios:
+
+v = valid, n = null, nn = non-nullable
+
+
+Invalid input
+-----------------
+
+* Error on 0 columns to search
+* Error on the result being null
+* Error on sorted_haystack being null
+* Error on needles being null
+* Error on any of any of the sorted_haystack being null
+* Error on any of any of the needles being null
+* Error on a needle column having validty with the haystack column not having it
+* non-nullable result but asking for null for missing values
+* Non-uniform needles column sizes
+* Non-uniform sorted_haystack column sizes
+
+Typical complex case
+-----------------------
+
+* Large table, multiple columns of multiple types, large number of needles, some nulls in the data and the needles.
+* switching options in the typical case: nulls first/last (affects generated data), find first greater / greater-or-equal
+* Applying a permutation of the needles vs a permutation of the results
+
+Simple cases
+-----------------------
+
+all types are int.
+try each combination with all 4 switch combinations (greater/gte, null/length on not-found)
+
+* single nn column, 1v      needle, 1v      haystack
+* single n  column, 1v      needle, 1v      haystack lower
+* single n  column, 1v      needle, 1v      haystack equal
+* single n  column, 1v      needle, 1v + 1n haystack null-equal (nulls first)
+* single n  column, 1v      needle, 1v + 1n haystack equal-null (nulls last)
+* single n  column, 1v      needle, 1v      haystack greater
+* single n  column, 1v      needle, 3v      haystack low-eq-gr
+* single n  column, 1v      needle, 21v     haystack low-eq-gr
+* single n  column, 1v      needle, 25v     haystack null-low-eq-gr (nulls first)
+* single n  column, 1v      needle, 25v     haystack low-eq-gr-null (nulls last)
+* single n  column, 1n      needle, 2v      haystack
+* single n  column, 1v      needle, 1v + 1n haystack
+
+* single n  column, 1v + 1n needle, 2v + 2n haystack
+
+
+
+Multi-column
+-----------------------
+
+Two columns.
+Have needles with equal range ending on the first column, second column, no column.
+Have needles with each of the haystack values, a value between every two the haystack values, below and above all of them, and a null
+
+
+
+Degenerate cases
+---------------
+
+* 0 needles
+* 0 haystack elements 
+* nuls with non-null needle
+
