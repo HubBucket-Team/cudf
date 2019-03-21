@@ -107,6 +107,10 @@ gdf_sorted_merge(gdf_column **       left_cols,
 
         gdf_column *output_col = output_cols[i];
 
+        if ((nullptr == left_col->valid) && (nullptr == right_col->valid)) {
+            break;
+        }
+
         output_col->null_count = left_col->null_count + right_col->null_count;
 
         const gdf_size_type total_valids = total_size - output_col->null_count;

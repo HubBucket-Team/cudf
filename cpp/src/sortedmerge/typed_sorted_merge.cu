@@ -16,39 +16,6 @@
 
 enum side_value { LEFT_SIDE_VALUE = 0, RIGHT_SIDE_VALUE };
 
-class ColumnSparsedRTTI {
-public:
-    explicit ColumnSparsedRTTI(const gdf_size_type sparsedIndex,
-                               const gdf_size_type columnIndex,
-                               void *const         data)
-        : sparsedIndex_{sparsedIndex}, columnIndex_{columnIndex}, data_{data} {}
-
-    __device__ explicit ColumnSparsedRTTI()
-        : sparsedIndex_{-1}, columnIndex_{-1}, data_{nullptr} {}
-
-    __device__ bool operator<(const ColumnSparsedRTTI &other) const {
-        const std::int64_t *thisData = static_cast<std::int64_t *>(data_);
-        const std::int64_t *otherData =
-            static_cast<std::int64_t *>(other.data_);
-
-        const std::int64_t left_value  = thisData[columnIndex_];
-        const std::int64_t right_value = otherData[other.columnIndex_];
-
-        return left_value > right_value;
-    }
-
-    __device__ const thrust::tuple<std::int32_t, std::int32_t> ToTuple() const
-        noexcept {
-        return thrust::make_tuple(static_cast<std::int32_t>(sparsedIndex_),
-                                  static_cast<std::int32_t>(columnIndex_));
-    }
-
-private:
-    gdf_size_type sparsedIndex_;
-    gdf_size_type columnIndex_;
-    void *        data_;
-};
-
 gdf_error
 typed_sorted_merge(gdf_column **       left_cols,
                    gdf_column **       right_cols,
@@ -195,42 +162,6 @@ typed_sorted_merge(gdf_column **       left_cols,
                           thrust::get<1>(right_tuple);
                       return comp.asc_desc_comparison(right_row, left_row);
                   });
-
-    thrust::device_vector<ColumnSparsedRTTI> leftColumnSparsed;
-    leftColumnSparsed.reserve(left_size);
-    for (gdf_size_type i = 0; i < left_size; i++) {
-        leftColumnSparsed.push_back(
-            ColumnSparsedRTTI{0, i, left_cols[0]->data});
-    }
-
-    thrust::device_vector<ColumnSparsedRTTI> rightColumnSparsed;
-    rightColumnSparsed.reserve(right_size);
-    for (gdf_size_type i = 0; i < right_size; i++) {
-        rightColumnSparsed.push_back(
-            ColumnSparsedRTTI{1, i, left_cols[0]->data});
-    }
-
-    thrust::device_vector<ColumnSparsedRTTI> outputColumnSparsed(total_size);
-
-    thrust::merge(thrust::device,
-                  leftColumnSparsed.begin(),
-                  leftColumnSparsed.end(),
-                  rightColumnSparsed.begin(),
-                  rightColumnSparsed.end(),
-                  outputColumnSparsed.begin(),
-                  [=] __device__(const ColumnSparsedRTTI &left,
-                                 const ColumnSparsedRTTI &right) {
-                      return left < right;
-                  });
-
-    thrust::transform(
-        thrust::device,
-        outputColumnSparsed.begin(),
-        outputColumnSparsed.end(),
-        output_zip_iterator,
-        [=] __device__(const ColumnSparsedRTTI &columnSparsedRTTI) {
-            return columnSparsedRTTI.ToTuple();
-        });
 
     RMM_FREE(filtered_left_d_cols_data, cudaStream);
     RMM_FREE(filtered_right_d_cols_data, cudaStream);
