@@ -9,12 +9,13 @@
 #include "soa_info.cuh"
 #include "typed_sorted_merge.cuh"
 
-gdf_error gdf_sorted_merge(gdf_column **     left_cols,
-                           gdf_column **     right_cols,
-                           const gdf_size_type ncols,
-                           gdf_column *      sort_by_cols,
-                           gdf_column *      asc_desc,
-                           gdf_column **     output_cols) {
+gdf_error
+gdf_sorted_merge(gdf_column **       left_cols,
+                 gdf_column **       right_cols,
+                 const gdf_size_type ncols,
+                 gdf_column *        sort_by_cols,
+                 gdf_column *        asc_desc,
+                 gdf_column **       output_cols) {
     const gdf_size_type left_size  = left_cols[0]->size;
     const gdf_size_type right_size = right_cols[0]->size;
 
@@ -26,11 +27,11 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
     rmmError_t rmmStatus;
 
     rmmStatus =
-        RMM_ALLOC(&sides.data, sizeof(std::int32_t) * total_size, nullptr);
+        RMM_ALLOC(&sides.data, sizeof(gdf_size_type) * total_size, nullptr);
     if (RMM_SUCCESS != rmmStatus) { return GDF_MEMORYMANAGER_ERROR; }
 
     rmmStatus =
-        RMM_ALLOC(&indices.data, sizeof(std::int32_t) * total_size, nullptr);
+        RMM_ALLOC(&indices.data, sizeof(gdf_size_type) * total_size, nullptr);
     if (RMM_SUCCESS != rmmStatus) {
         RMM_FREE(sides.data, nullptr);
         return GDF_MEMORYMANAGER_ERROR;
@@ -46,9 +47,10 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
                                               nullptr);
     if (GDF_SUCCESS != gdf_status) { return gdf_status; }
 
-    auto output_zip_iterator = thrust::make_zip_iterator(
-        thrust::make_tuple(static_cast<std::int32_t *>(sides.data),
-                           static_cast<std::int32_t *>(indices.data)));
+    const thrust::zip_iterator<thrust::tuple<gdf_size_type *, gdf_size_type *>>
+        output_zip_iterator = thrust::make_zip_iterator(
+            thrust::make_tuple(static_cast<gdf_size_type *>(sides.data),
+                               static_cast<gdf_size_type *>(indices.data)));
 
     INITIALIZE_D_VALUES(left);
     INITIALIZE_D_VALUES(right);
@@ -61,8 +63,10 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
             thrust::make_counting_iterator(0), output_zip_iterator)),
         total_size,
         [=] __device__(
-            thrust::tuple<int, thrust::tuple<int, gdf_size_type>> group_tuple) {
-            thrust::tuple<int, gdf_size_type> output_tuple =
+            thrust::tuple<gdf_size_type,
+                          thrust::tuple<gdf_size_type, gdf_size_type>>
+                group_tuple) {
+            thrust::tuple<gdf_size_type, gdf_size_type> output_tuple =
                 thrust::get<1>(group_tuple);
 
             const gdf_size_type side = thrust::get<0>(output_tuple);
@@ -72,12 +76,12 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
                 const gdf_dtype output_type =
                     static_cast<gdf_dtype>(output_d_col_types[i]);
 
-#define CASE(DTYPE, CTYPE)                                                     \
-    case DTYPE: {                                                              \
-        CTYPE *output = reinterpret_cast<CTYPE *>(output_d_cols_data[i]);      \
-        output[thrust::get<0>(group_tuple)] =                                  \
-            0 == side ? reinterpret_cast<CTYPE *>(left_d_cols_data[i])[pos]    \
-                      : reinterpret_cast<CTYPE *>(right_d_cols_data[i])[pos];  \
+#define CASE(DTYPE, CTYPE)                                                    \
+    case DTYPE: {                                                             \
+        CTYPE *output = reinterpret_cast<CTYPE *>(output_d_cols_data[i]);     \
+        output[thrust::get<0>(group_tuple)] =                                 \
+            0 == side ? reinterpret_cast<CTYPE *>(left_d_cols_data[i])[pos]   \
+                      : reinterpret_cast<CTYPE *>(right_d_cols_data[i])[pos]; \
     } break
 
                 switch (output_type) {
@@ -89,7 +93,8 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
                     CASE(GDF_FLOAT64, double);
                     CASE(GDF_DATE32, std::int32_t);
                     CASE(GDF_DATE64, std::int64_t);
-                default: assert(false && "comparison: invalid output gdf_type");
+                    default:
+                        assert(false && "comparison: invalid output gdf_type");
                 }
             }
         });
@@ -106,8 +111,8 @@ gdf_error gdf_sorted_merge(gdf_column **     left_cols,
 
         const gdf_size_type total_valids = total_size - output_col->null_count;
 
-        cudaStatus = cudaMemset(output_col->valid, 0,
-                                gdf_valid_allocation_size(total_size));
+        cudaStatus = cudaMemset(
+            output_col->valid, 0, gdf_valid_allocation_size(total_size));
         if (cudaSuccess != cudaStatus) {
             RMM_FREE(sides.data, nullptr);
             RMM_FREE(indices.data, nullptr);

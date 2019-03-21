@@ -10,12 +10,44 @@
 #include "sqls/sqls_rtti_comp.h"
 
 #include "alloc_filtered_cols.cuh"
-#include "make_indices.cuh"
 #include "pair_rtti.cuh"
 #include "soa_info.cuh"
 #include "typed_sorted_merge.cuh"
 
 enum side_value { LEFT_SIDE_VALUE = 0, RIGHT_SIDE_VALUE };
+
+class ColumnSparsedRTTI {
+public:
+    explicit ColumnSparsedRTTI(const gdf_size_type sparsedIndex,
+                               const gdf_size_type columnIndex,
+                               void *const         data)
+        : sparsedIndex_{sparsedIndex}, columnIndex_{columnIndex}, data_{data} {}
+
+    __device__ explicit ColumnSparsedRTTI()
+        : sparsedIndex_{-1}, columnIndex_{-1}, data_{nullptr} {}
+
+    __device__ bool operator<(const ColumnSparsedRTTI &other) const {
+        const std::int64_t *thisData = static_cast<std::int64_t *>(data_);
+        const std::int64_t *otherData =
+            static_cast<std::int64_t *>(other.data_);
+
+        const std::int64_t left_value  = thisData[columnIndex_];
+        const std::int64_t right_value = otherData[other.columnIndex_];
+
+        return left_value > right_value;
+    }
+
+    __device__ const thrust::tuple<std::int32_t, std::int32_t> ToTuple() const
+        noexcept {
+        return thrust::make_tuple(static_cast<std::int32_t>(sparsedIndex_),
+                                  static_cast<std::int32_t>(columnIndex_));
+    }
+
+private:
+    gdf_size_type sparsedIndex_;
+    gdf_size_type columnIndex_;
+    void *        data_;
+};
 
 gdf_error
 typed_sorted_merge(gdf_column **       left_cols,
@@ -49,44 +81,46 @@ typed_sorted_merge(gdf_column **       left_cols,
     INITIALIZE_D_VALUES(left);
     INITIALIZE_D_VALUES(right);
 
-    gdf_size_type sort_by_ncols = sort_by_cols->size;
+    const thrust::constant_iterator<gdf_size_type> left_side =
+        thrust::make_constant_iterator(
+            static_cast<gdf_size_type>(LEFT_SIDE_VALUE));
+    const thrust::constant_iterator<gdf_size_type> right_side =
+        thrust::make_constant_iterator(
+            static_cast<gdf_size_type>(RIGHT_SIDE_VALUE));
 
-    gdf_size_type *left_indices = make_indices(cudaStream, left_size);
-    if (left_indices == nullptr) { return GDF_MEMORYMANAGER_ERROR; }
-
-    gdf_size_type *right_indices = make_indices(cudaStream, right_size);
-    if (right_indices == nullptr) {
-        RMM_FREE(left_indices, cudaStream);
-        return GDF_MEMORYMANAGER_ERROR;
-    }
-
-    const thrust::constant_iterator<int> left_side =
-        thrust::make_constant_iterator(static_cast<int>(LEFT_SIDE_VALUE));
-    const thrust::constant_iterator<int> right_side =
-        thrust::make_constant_iterator(static_cast<int>(RIGHT_SIDE_VALUE));
+    const thrust::counting_iterator<gdf_size_type> left_indices =
+        thrust::make_counting_iterator(0);
+    const thrust::counting_iterator<gdf_size_type> right_indices =
+        thrust::make_counting_iterator(0);
 
     const thrust::zip_iterator<
-        thrust::tuple<thrust::constant_iterator<int>, gdf_size_type *>>
+        thrust::tuple<thrust::constant_iterator<gdf_size_type>,
+                      thrust::counting_iterator<gdf_size_type>>>
         left_begin_zip_iterator = thrust::make_zip_iterator(
             thrust::make_tuple(left_side, left_indices));
     const thrust::zip_iterator<
-        thrust::tuple<thrust::constant_iterator<int>, gdf_size_type *>>
+        thrust::tuple<thrust::constant_iterator<gdf_size_type>,
+                      thrust::counting_iterator<gdf_size_type>>>
         right_begin_zip_iterator = thrust::make_zip_iterator(
             thrust::make_tuple(right_side, right_indices));
 
     const thrust::zip_iterator<
-        thrust::tuple<thrust::constant_iterator<int>, gdf_size_type *>>
+        thrust::tuple<thrust::constant_iterator<gdf_size_type>,
+                      thrust::counting_iterator<gdf_size_type>>>
         left_end_zip_iterator = thrust::make_zip_iterator(thrust::make_tuple(
             left_side + left_size, left_indices + left_size));
     const thrust::zip_iterator<
-        thrust::tuple<thrust::constant_iterator<int>, gdf_size_type *>>
+        thrust::tuple<thrust::constant_iterator<gdf_size_type>,
+                      thrust::counting_iterator<gdf_size_type>>>
         right_end_zip_iterator = thrust::make_zip_iterator(thrust::make_tuple(
             right_side + right_size, right_indices + right_size));
 
-    const thrust::zip_iterator<thrust::tuple<std::int32_t *, std::int32_t *>>
+    const thrust::zip_iterator<thrust::tuple<gdf_size_type *, gdf_size_type *>>
         output_zip_iterator = thrust::make_zip_iterator(thrust::make_tuple(
-            static_cast<std::int32_t *>(output_sides->data),
-            static_cast<std::int32_t *>(output_indices->data)));
+            static_cast<gdf_size_type *>(output_sides->data),
+            static_cast<gdf_size_type *>(output_indices->data)));
+
+    gdf_size_type sort_by_ncols = sort_by_cols->size;
 
     void **          filtered_left_d_cols_data    = nullptr;
     void **          filtered_right_d_cols_data   = nullptr;
@@ -102,11 +136,7 @@ typed_sorted_merge(gdf_column **       left_cols,
                                                  filtered_left_d_col_types,
                                                  filtered_right_d_col_types,
                                                  cudaStream);
-    if (GDF_SUCCESS != gdf_status) {
-        RMM_FREE(left_indices, cudaStream);
-        RMM_FREE(right_indices, cudaStream);
-        return gdf_status;
-    }
+    if (GDF_SUCCESS != gdf_status) { return gdf_status; }
 
     // filter left and right cols for sorting
     std::int32_t *sort_by_d_cols_data =
@@ -151,22 +181,57 @@ typed_sorted_merge(gdf_column **       left_cols,
         sort_by_ncols,
         static_cast<const std::int8_t *>(asc_desc->data));
 
-    thrust::merge(
-        rmm::exec_policy(cudaStream)->on(cudaStream),
-        left_begin_zip_iterator,
-        left_end_zip_iterator,
-        right_begin_zip_iterator,
-        right_end_zip_iterator,
+    thrust::merge(rmm::exec_policy(cudaStream)->on(cudaStream),
+                  left_begin_zip_iterator,
+                  left_end_zip_iterator,
+                  right_begin_zip_iterator,
+                  right_end_zip_iterator,
+                  output_zip_iterator,
+                  [=] __device__(
+                      thrust::tuple<gdf_size_type, gdf_size_type> left_tuple,
+                      thrust::tuple<gdf_size_type, gdf_size_type> right_tuple) {
+                      const gdf_size_type left_row = thrust::get<1>(left_tuple);
+                      const gdf_size_type right_row =
+                          thrust::get<1>(right_tuple);
+                      return comp.asc_desc_comparison(right_row, left_row);
+                  });
+
+    thrust::device_vector<ColumnSparsedRTTI> leftColumnSparsed;
+    leftColumnSparsed.reserve(left_size);
+    for (gdf_size_type i = 0; i < left_size; i++) {
+        leftColumnSparsed.push_back(
+            ColumnSparsedRTTI{0, i, left_cols[0]->data});
+    }
+
+    thrust::device_vector<ColumnSparsedRTTI> rightColumnSparsed;
+    rightColumnSparsed.reserve(right_size);
+    for (gdf_size_type i = 0; i < right_size; i++) {
+        rightColumnSparsed.push_back(
+            ColumnSparsedRTTI{1, i, left_cols[0]->data});
+    }
+
+    thrust::device_vector<ColumnSparsedRTTI> outputColumnSparsed(total_size);
+
+    thrust::merge(thrust::device,
+                  leftColumnSparsed.begin(),
+                  leftColumnSparsed.end(),
+                  rightColumnSparsed.begin(),
+                  rightColumnSparsed.end(),
+                  outputColumnSparsed.begin(),
+                  [=] __device__(const ColumnSparsedRTTI &left,
+                                 const ColumnSparsedRTTI &right) {
+                      return left < right;
+                  });
+
+    thrust::transform(
+        thrust::device,
+        outputColumnSparsed.begin(),
+        outputColumnSparsed.end(),
         output_zip_iterator,
-        [=] __device__(thrust::tuple<int, gdf_size_type> left_tuple,
-                       thrust::tuple<int, gdf_size_type> right_tuple) {
-            const gdf_size_type left_row  = thrust::get<1>(left_tuple);
-            const gdf_size_type right_row = thrust::get<1>(right_tuple);
-            return comp.asc_desc_comparison(left_row, right_row);
+        [=] __device__(const ColumnSparsedRTTI &columnSparsedRTTI) {
+            return columnSparsedRTTI.ToTuple();
         });
 
-    RMM_FREE(left_indices, cudaStream);
-    RMM_FREE(right_indices, cudaStream);
     RMM_FREE(filtered_left_d_cols_data, cudaStream);
     RMM_FREE(filtered_right_d_cols_data, cudaStream);
     RMM_FREE(filtered_left_d_col_types, cudaStream);
