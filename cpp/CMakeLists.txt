@@ -296,6 +296,12 @@ install(TARGETS cudf
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf.h
         DESTINATION include)
 
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/copying.hpp
+        DESTINATION include)
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/types.hpp
+        DESTINATION include)
+
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf
         DESTINATION include)
 
@@ -315,9 +321,3 @@ add_custom_command(OUTPUT CUDF_DOXYGEN
                    VERBATIM)
 
 add_custom_target(doc DEPENDS CUDF_DOXYGEN)
-
-
-
-
-
-
