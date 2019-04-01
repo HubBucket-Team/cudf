@@ -23,15 +23,18 @@ public:
     __device__ bool asc_desc_comparison(IndexT left_row,
                                         IndexT right_row) const {
         for (gdf_size_type i = 0; i < size_; i++) {
-             const gdf_valid_type *left_valids = left_side_group_.valids[i];
-             const gdf_valid_type *right_valids = right_side_group_.valids[i];
+            const gdf_valid_type *left_valids  = left_side_group_.valids[i];
+            const gdf_valid_type *right_valids = right_side_group_.valids[i];
 
-             const bool left_is_valid = left_valids ?
-             gdf_is_valid(left_side_group_.valids[i], left_row) : true;
-             const bool right_is_valid = right_valids ?
-             gdf_is_valid(right_side_group_.valids[i], right_row) : true;
+            const bool left_is_valid =
+                left_valids ? gdf_is_valid(left_side_group_.valids[i], left_row)
+                            : true;
+            const bool right_is_valid =
+                right_valids
+                    ? gdf_is_valid(right_side_group_.valids[i], right_row)
+                    : true;
 
-             if (!left_is_valid || !right_is_valid) { return false; }
+            if (!left_is_valid || !right_is_valid) { return false; }
 
             const gdf_dtype left_dtype =
                 static_cast<gdf_dtype>(left_side_group_.types[i]);
@@ -49,18 +52,26 @@ public:
             // TODO: From sorted_merge function we can create a column wrapper
             //       class with type info instead of use soa_col_info. Thus, we
             //       can use the compiler type checking.
-#define RIGHT_CASE(DTYPE, LEFT_CTYPE, RIGHT_CTYPE)                             \
-    case DTYPE: {                                                              \
-        const LEFT_CTYPE left_value =                                          \
-            reinterpret_cast<const LEFT_CTYPE *>(left_col)[left_row];          \
-        const RIGHT_CTYPE right_value =                                        \
-            reinterpret_cast<const RIGHT_CTYPE *>(right_col)[right_row];       \
-        if (asc) {                                                             \
-            if (left_value > right_value) { return true; }                     \
-        } else {                                                               \
-            if (left_value < right_value) { return true; }                     \
-        }                                                                      \
-    }                                                                          \
+#define RIGHT_CASE(DTYPE, LEFT_CTYPE, RIGHT_CTYPE)                       \
+    case DTYPE: {                                                        \
+        const LEFT_CTYPE left_value =                                    \
+            reinterpret_cast<const LEFT_CTYPE *>(left_col)[left_row];    \
+        const RIGHT_CTYPE right_value =                                  \
+            reinterpret_cast<const RIGHT_CTYPE *>(right_col)[right_row]; \
+        if (asc) {                                                       \
+            if (left_value > right_value) {                              \
+                return true;                                             \
+            } else if (left_value < right_value) {                       \
+                return false;                                            \
+            }                                                            \
+        } else {                                                         \
+            if (left_value < right_value) {                              \
+                return true;                                             \
+            } else if (left_value > right_value) {                       \
+                return false;                                            \
+            }                                                            \
+        }                                                                \
+    }                                                                    \
         continue
 
 #define LEFT_CASE(DTYPE, LEFT_CTYPE)                                        \
