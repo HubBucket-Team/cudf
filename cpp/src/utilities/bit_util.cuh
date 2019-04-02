@@ -23,6 +23,20 @@
 
 #include <utilities/cudf_utils.h>
 #include <utilities/miscellany.hpp>
+#include <stdint.h>
+#include <string>
+
+#ifndef CUDA_HOST_DEVICE_CALLABLE
+#ifdef __CUDACC__
+#define CUDA_HOST_DEVICE_CALLABLE __host__ __device__ inline
+#define CUDA_DEVICE_CALLABLE __device__ inline
+#define CUDA_LAUNCHABLE __global__
+#else
+#define CUDA_HOST_DEVICE_CALLABLE inline
+#define CUDA_DEVICE_CALLABLE inline
+#define CUDA_LAUNCHABLE
+#endif
+#endif
 
 namespace gdf {
 namespace util {
@@ -35,7 +49,7 @@ template <typename T>
 constexpr inline std::size_t size_in_bits() { return sizeof(T) * CHAR_BIT; }
 
 // Instead of this function, use gdf_valid_allocation_size from legacy_bitmask.hpp
-//__host__ __device__ __forceinline__
+//CUDA_HOST_DEVICE_CALLABLE
 //  size_t
 //  valid_size(size_t column_length)
 //{

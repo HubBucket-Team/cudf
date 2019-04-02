@@ -19,12 +19,14 @@
 // See this header for all of the recursive handling of tuples of vectors
 #include "tuple_vectors.h"
 
-#include <cudf.h>
-#include <rmm/rmm.h>
-#include <cudf/functions.h>
 #include <utilities/cudf_utils.h>
 #include <utilities/bit_util.cuh>
 #include <utilities/type_dispatcher.hpp>
+#include <bitmask/legacy_bitmask.hpp>
+
+#include <cudf.h>
+
+#include <rmm/rmm.h>
 
 #include <thrust/equal.h>
 
@@ -34,60 +36,24 @@
 
 // We use this single character to represent a gdf_column element being null
 constexpr const char null_representative = '@';
-#include <bitmask/legacy_bitmask.hpp>
-
-/**
- * @Synopsis  Counts the number of valid bits for the specified number of rows
- * in the host vector of gdf_valid_type masks
- *
- * @Param masks The host vector of masks whose bits will be counted
- * @Param num_rows The number of bits to count
- *
- * @Returns  The number of valid bits in [0, num_rows) in the host vector of
- * masks
- **/
-inline gdf_size_type count_valid_bits_host(
-    std::vector<gdf_valid_type> const& masks, gdf_size_type const num_rows) {
-  if ((0 == num_rows) || (0 == masks.size())) {
-    return 0;
-  }
-
-  gdf_size_type count{0};
-
-  // Count the valid bits for all masks except the last one
-  for (gdf_size_type i = 0; i < (gdf_num_bitmask_elements(num_rows) - 1); ++i) {
-    gdf_valid_type current_mask = masks[i];
-
-    while (current_mask > 0) {
-      current_mask &= (current_mask - 1);
-      count++;
-    }
-  }
-
-  // Only count the bits in the last mask that correspond to rows
-  int num_rows_last_mask = num_rows % GDF_VALID_BITSIZE;
-  if (num_rows_last_mask == 0) {
-    num_rows_last_mask = GDF_VALID_BITSIZE;
-  }
-
-  // Mask off only the bits that correspond to rows
-  gdf_valid_type const rows_mask = ( gdf_valid_type{1} << num_rows_last_mask ) - 1;
-  gdf_valid_type last_mask = masks[gdf_num_bitmask_elements(num_rows) - 1] & rows_mask;
-
-  while (last_mask > 0) {
-    last_mask &= (last_mask - 1);
-    count++;
-  }
-
-  std::cout << "rows: " << num_rows << " null count: " << count << std::endl;
-
-  return count;
-}
 
 // Type for a unique_ptr to a gdf_column with a custom deleter
 // Custom deleter is defined at construction
-using gdf_col_pointer = typename std::unique_ptr<gdf_column,
-                                                 std::function<void(gdf_column*)>>;
+using gdf_col_pointer = typename std::unique_ptr<gdf_column, std::function<void(gdf_column*)>>;
+
+/**
+ * @brief  Counts the number of valid bits for the specified number of rows
+ * in the host vector of gdf_valid_type masks
+ *
+ * @param masks The host vector of masks whose bits will be counted
+ * @param num_rows The number of bits to count
+ *
+ * @returns The number of valid bits in [0, num_rows) in the host vector of
+ * masks
+ **/
+gdf_size_type count_valid_bits_host(
+  std::vector<gdf_valid_type> const& masks, gdf_size_type const num_rows);
+
 
 /**
  * @brief Prints a "broken-down" column's data to the standard output stream,
@@ -116,7 +82,7 @@ void print_typed_column(
 
   cudaMemcpy(h_data.data(), col_data, size_in_elements * sizeof(Element), cudaMemcpyDefault);
 
-  const size_t num_valid_type_elements = gdf_num_bitmask_elements(size_in_elements);
+  const size_t num_valid_type_elements = gdf_valid_allocation_size(size_in_elements);
   std::vector<gdf_valid_type> h_mask(num_valid_type_elements );
   if(nullptr != validity_mask)
   {
@@ -174,12 +140,17 @@ void print_gdf_column(gdf_column const *column, unsigned min_element_print_width
 
 /** ---------------------------------------------------------------------------*
  * @brief prints validity data from either a host or device pointer
- *
+ * 
  * @param validity_mask The validity bitmask to print
- * @param size_in_elements The length of the column (not the bitmask) in rows
+ * @param length Length of the mask in bits
+ *
+ * @note the mask may have more space allocated for it than is necessary 
+ * for the specified length; in particular, it will have "slack" bits
+ * in the last byte, if length % 8 != 0. Such slack bits are ignored and
+ * not printed. Usually, length is the number of elements of a gdf_column.
  * ---------------------------------------------------------------------------**/
-void print_valid_data(const gdf_valid_type *validity_mask,
-                      const size_t size_in_elements);
+void print_valid_data(const gdf_valid_type *validity_mask, 
+                      const size_t length);
 
 /* --------------------------------------------------------------------------*/
 /**
@@ -187,7 +158,7 @@ void print_valid_data(const gdf_valid_type *validity_mask,
  *
  * @param host_vector The host vector whose data is used to initialize the gdf_column
  *
- * @Returns A unique_ptr wrapping the new gdf_column
+ * @returns A unique_ptr wrapping the new gdf_column
  */
 /* ----------------------------------------------------------------------------*/
 template <typename ColumnType>
@@ -219,7 +190,7 @@ gdf_col_pointer create_gdf_column(std::vector<ColumnType> const & host_vector,
   extra_info.time_unit = TIME_UNIT_NONE;
   the_column->dtype_info = extra_info;
 
-  // If a validity bitmask vector was passed in, allocate device storage
+  // If a validity bitmask vector was passed in, allocate device storage 
   // and copy its contents from the host vector
   if(valid_vector.size() > 0)
   {
@@ -260,7 +231,7 @@ gdf_col_pointer init_gdf_column(std::vector<T> data, size_t col_index, valid_ini
 // a gdf_column and append it to a vector of gdf_columns
 template<typename valid_initializer_t, std::size_t I = 0, typename... Tp>
   inline typename std::enable_if<I == sizeof...(Tp), void>::type
-convert_tuple_to_gdf_columns(std::vector<gdf_col_pointer> &gdf_columns,std::tuple<std::vector<Tp>...>& t,
+convert_tuple_to_gdf_columns(std::vector<gdf_col_pointer> &gdf_columns,std::tuple<std::vector<Tp>...>& t, 
                              valid_initializer_t bit_initializer)
 {
   //bottom of compile-time recursion
@@ -283,9 +254,8 @@ convert_tuple_to_gdf_columns(std::vector<gdf_col_pointer> &gdf_columns,std::tupl
 }
 
 // Converts a tuple of host vectors into a vector of gdf_columns
-
 template<typename valid_initializer_t, typename... Tp>
-std::vector<gdf_col_pointer> initialize_gdf_columns(std::tuple<std::vector<Tp>...> & host_columns,
+std::vector<gdf_col_pointer> initialize_gdf_columns(std::tuple<std::vector<Tp>...> & host_columns, 
                                                     valid_initializer_t bit_initializer)
 {
   std::vector<gdf_col_pointer> gdf_columns;
@@ -294,12 +264,12 @@ std::vector<gdf_col_pointer> initialize_gdf_columns(std::tuple<std::vector<Tp>..
 }
 
 
-// Overload for default initialization of validity bitmasks which
+// Overload for default initialization of validity bitmasks which 
 // sets every element to valid
 template<typename... Tp>
 std::vector<gdf_col_pointer> initialize_gdf_columns(std::tuple<std::vector<Tp>...> & host_columns )
 {
-  return initialize_gdf_columns(host_columns,
+  return initialize_gdf_columns(host_columns, 
                                 [](const size_t row, const size_t col){return true;});
 }
 
@@ -311,7 +281,7 @@ std::vector<gdf_col_pointer> initialize_gdf_columns(
   std::vector<gdf_col_pointer> gdf_columns;
 
   size_t col = 0;
-
+  
   for (auto column : columns)
   {
     // Creates a gdf_column for the current vector and pushes it onto
@@ -355,8 +325,6 @@ bool gdf_equal_columns(gdf_column* left, gdf_column* right)
                      reinterpret_cast<T*>(right->data)))
     return false;
 
-  if (left->null_count == 0 && right->null_count == 0) return true;
-
   if (!(left->valid && right->valid))
     return false;  // if one is null but not both
 
@@ -364,7 +332,7 @@ bool gdf_equal_columns(gdf_column* left, gdf_column* right)
                      left->valid + gdf_num_bitmask_elements(left->size),
                      right->valid))
     return false;
-
+  
   return true;
 }
 
