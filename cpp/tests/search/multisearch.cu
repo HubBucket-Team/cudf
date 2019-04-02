@@ -15,43 +15,14 @@
  * limitations under the License.
  */
 
-#include <tests/utilities/cudf_test_fixtures.h> // for GdfTest
-#include <tests/utilities/cudf_test_utils.cuh>
-#include <tests/utilities/column_wrapper.cuh>
+#include "multisearch.cuh"
 
-#include <cudf.h>
-
-#include <utilities/miscellany.hpp>
-
-#include <gtest/gtest.h>
-
-#include <iostream>
-//#include <tuple>
 #include <random>
 
-enum : bool {
-    find_first_greater = true,
-    find_first_greater_or_equal = false
-};
-
-enum : bool {
-    nulls_appear_before_values = true,
-    nulls_appear_after_values = false
-};
-
-enum : bool {
-    use_haystack_length_for_not_found = true,
-    use_null_for_not_found = false
-};
-
-
-template <typename T>
-using column_wrapper = cudf::test::column_wrapper<int>;
-
-enum : bool {
-    non_nullable = false,
-    nullable = true
-};
+using cudf::test::column_wrapper;
+using std::get;
+using std::cbegin;
+using std::cend;
 
 // TODO: Make this templated on a tuple type, and use the gadget above to be able to work with the parameter packs directly.
 struct Multisearch : public GdfTest {
@@ -103,9 +74,9 @@ TEST(Multisearch, fails_when_no_haystack_columns_provided)
     ASSERT_NE(result, GDF_SUCCESS);
 }
 
-TEST(Multisearch, succeeds_with_single_non_null_column_one_needle)
+TEST(Multisearch, single_non_null_column_one_needle)
 {
-    using single_element_type = int;
+    using single_element_type = int32_t;
 
     gdf_column_index_type num_columns     { 1 };
 
@@ -114,34 +85,300 @@ TEST(Multisearch, succeeds_with_single_non_null_column_one_needle)
     std::vector<single_element_type> needle_data { 20 };
     std::vector<gdf_size_type> dummy_result_data { 1234567 };
 
-    auto single_haystack_column = cudf::test::column_wrapper<single_element_type>(haystack_data);
-    auto single_needle_column   = cudf::test::column_wrapper<single_element_type>(needle_data);
-//  auto results                = cudf::test::column_wrapper<gdf_size_type      >(num_needles,     non_nullable);
-    auto results                = cudf::test::column_wrapper<gdf_size_type>(dummy_result_data);
-
-//    single_haystack_column.print();
-//    single_needle_column.print();
-//    results.print();
+    auto single_haystack_column = column_wrapper<single_element_type>(haystack_data);
+    auto single_needle_column   = column_wrapper<single_element_type>(needle_data);
+//  auto results                = column_wrapper<gdf_size_type      >(needle_data.size(), non_nullable);
+    auto results                = column_wrapper<gdf_size_type>(dummy_result_data);
 
     gdf_column* haystack_columns[] = { single_haystack_column.get() };
     gdf_column* needle_columns[]   = { single_needle_column.get()   };
 
-    gdf_error result;
-    ASSERT_NO_THROW(
-        result = gdf_multisearch(
+    ASSERT_CUDF_SUCCESS(
+        gdf_multisearch(
             results.get(),
             &(haystack_columns[0]),
             &(needle_columns[0]),
             num_columns,
             find_first_greater,
             nulls_appear_before_values,
-            use_haystack_length_for_not_found);
+            use_haystack_length_for_not_found)
     );
-    ASSERT_EQ(result, GDF_SUCCESS);
     auto results_on_host = results.to_host();
     ASSERT_EQ(results.get()->valid, nullptr); // Just a sanity check really
-    ASSERT_EQ(std::get<0>(results_on_host).size(), size_t{1});
-    if (not std::get<0>(results_on_host).empty()) {
-        ASSERT_EQ(std::get<0>(results_on_host)[0], 2); // at position 2 we have 30, greater than 20.
-    }
+    ASSERT_EQ(get<0>(results_on_host).size(), needle_data.size());
+    ASSERT_EQ(get<0>(results_on_host)[0], 2); // at position 2 we have 30, greater than 20.
+}
+
+TEST(Multisearch, single_non_null_column_multiple_needles)
+{
+    using single_element_type = int32_t;
+
+    gdf_column_index_type num_columns     { 1 };
+
+    std::vector<single_element_type> haystack_data       { 10, 20, 30, 40, 50 };
+    std::vector<single_element_type> needle_data         {  0,  7, 10, 11, 30, 32, 40, 47, 50, 90 };
+    std::vector<gdf_size_type> first_greater_than        {  0,  0,  1,  1,  3,  3,  4,  4,  5,  5 };
+    std::vector<gdf_size_type> first_greater_or_equal_to {  0,  0,  0,  1,  2,  3,  3,  4,  4,  5 };
+
+    auto single_haystack_column = column_wrapper<single_element_type>(haystack_data);
+    auto single_needle_column   = column_wrapper<single_element_type>(needle_data);
+    auto results                = column_wrapper<gdf_size_type      >(needle_data.size(), non_nullable);
+
+    gdf_column* haystack_columns[] = { single_haystack_column.get() };
+    gdf_column* needle_columns[]   = { single_needle_column.get()   };
+
+    ASSERT_CUDF_SUCCESS( fill(*results.get(), gdf_size_type{0xDEADBEEF}) );
+
+    ASSERT_CUDF_SUCCESS(
+        gdf_multisearch(
+            results.get(),
+            &(haystack_columns[0]),
+            &(needle_columns[0]),
+            num_columns,
+            find_first_greater,
+            nulls_appear_before_values,
+            use_haystack_length_for_not_found)
+    );
+
+    auto results_on_host = results.to_host();
+    ASSERT_EQ(results.get()->null_count, 0);
+    ASSERT_EQ(get<0>(results_on_host).size(), needle_data.size());
+    auto results_data_on_host = get<0>(results_on_host);
+
+    ASSERT_EQ(
+        std::equal(cbegin(results_data_on_host), cbegin(results_data_on_host), cbegin(first_greater_than) ),
+        true);
+
+    ASSERT_CUDF_SUCCESS(
+        gdf_multisearch(
+            results.get(),
+            &(haystack_columns[0]),
+            &(needle_columns[0]),
+            num_columns,
+            find_first_greater_or_equal,
+            nulls_appear_before_values,
+            use_haystack_length_for_not_found)
+    );
+
+    results_on_host = results.to_host();
+    ASSERT_EQ(results.get()->null_count, 0);
+    ASSERT_EQ(get<0>(results_on_host).size(), needle_data.size());
+    results_data_on_host = get<0>(results_on_host);
+
+    EXPECT_TRUE(std::equal(cbegin(results_data_on_host), cbegin(results_data_on_host), cbegin(first_greater_or_equal_to) ));
+}
+
+TEST(Multisearch, single_column_multiple_needles)
+{
+    const auto print_all_unequal_pairs { false };
+    using single_element_type = int32_t;
+    gdf_column_index_type num_columns     { 1 };
+
+    std::vector<single_element_type> haystack_data     { 10, 60, 10, 20, 30, 40, 50 };
+    std::vector<gdf_valid_type     > haystack_validity {  0,  0,  1,  1,  1,  1,  1 };
+    std::vector<single_element_type> needle_data       {  8,  8, 10, 11, 30, 32, 40, 47, 50, 90 };
+    std::vector<single_element_type> needle_validity   {  0,  1,  1,  1,  1,  1,  1,  1,  1,  1 };
+    std::vector<gdf_size_type> first_greater_than_data {  2,  2,  3,  3,  5,  5,  6,  6,  7,  7 };
+    std::vector<gdf_size_type> first_greater_or_equal_to_data
+                                                       {  0,  2,  2,  3,  4,  5,  5,  6,  6,  7 };
+
+    auto single_haystack_column = column_wrapper<single_element_type>(haystack_data, make_validity_initializer(haystack_validity));
+    auto single_needle_column   = column_wrapper<single_element_type>(needle_data, make_validity_initializer(needle_validity));
+    auto results                = column_wrapper<gdf_size_type      >(needle_data.size(), non_nullable);
+
+//    self_titled_print(single_haystack_column);
+//    self_titled_print(single_needle_column);
+
+    gdf_column* haystack_columns[] = { single_haystack_column.get() };
+    gdf_column* needle_columns[]   = { single_needle_column.get()   };
+
+    ASSERT_CUDF_SUCCESS(fill(*results.get(), single_element_type{0xDEADBEEF}));
+
+    ASSERT_CUDF_SUCCESS(
+        gdf_multisearch(
+            results.get(),
+            &(haystack_columns[0]),
+            &(needle_columns[0]),
+            num_columns,
+            find_first_greater,
+            nulls_appear_before_values,
+            use_haystack_length_for_not_found)
+    );
+
+    cudaDeviceSynchronize(); std::cout << std::flush;
+
+    auto first_greater_than = column_wrapper<gdf_size_type>(first_greater_than_data);
+
+//    print(results, "first_greater - actual results");
+//    print(first_greater_than, "first_greater - expected results");
+
+    expect_column(results, first_greater_than, print_all_unequal_pairs);
+
+    ASSERT_CUDF_SUCCESS(
+        gdf_multisearch(
+            results.get(),
+            &(haystack_columns[0]),
+            &(needle_columns[0]),
+            num_columns,
+            find_first_greater_or_equal,
+            nulls_appear_before_values,
+            use_haystack_length_for_not_found)
+    );
+
+    cudaDeviceSynchronize(); std::cout << std::flush;
+
+    auto first_greater_or_equal_to = column_wrapper<gdf_size_type>(first_greater_or_equal_to_data);
+
+//    print(results, "first_greater_or_equal_to - actual results");
+//    print(first_greater_or_equal_to, "first_greater_or_equal_to - expected results");
+
+    expect_column(results, first_greater_or_equal_to, print_all_unequal_pairs);
+}
+
+TEST(Multisearch, use_of_nulls_for_not_found)
+{
+    using single_element_type = int32_t;
+
+    gdf_column_index_type num_columns     { 1 };
+
+    std::vector<single_element_type> haystack_data { 10, 20, 30, 40, 50 };
+    std::vector<single_element_type> needle_data              {    0,   50,  100,   50,   25,   50,  100,   50 };
+    std::vector<gdf_size_type> first_greater_than_data        {    0, 1234, 5678, 9101,    2, 2345, 6789, 1011 };
+    std::vector<gdf_size_type> first_greater_or_equal_to_data {    0,    4, 2222,    4,    2,    4, 3333,    4 };
+        // Note the use of dummy data
+    std::vector<gdf_valid_type> first_greater_than_validity        { 1, 0, 0, 0, 1, 0, 0, 0 };
+    std::vector<gdf_valid_type> first_greater_or_equal_to_validity { 1, 1, 0, 1, 1, 1, 0, 1 };
+
+    auto single_haystack_column = column_wrapper<single_element_type>(haystack_data);
+    auto single_needle_column   = column_wrapper<single_element_type>(needle_data);
+    auto results                = column_wrapper<gdf_size_type      >(needle_data.size(), nullable);
+
+    gdf_column* haystack_columns[] = { single_haystack_column.get() };
+    gdf_column* needle_columns[]   = { single_needle_column.get()   };
+
+//    self_titled_print(single_haystack_column);
+//    self_titled_print(single_needle_column);
+
+    ASSERT_CUDF_SUCCESS( fill(*results.get(), gdf_size_type{0xDEADBEEF}) );
+
+    ASSERT_CUDF_SUCCESS(
+        gdf_multisearch(
+            results.get(),
+            &(haystack_columns[0]),
+            &(needle_columns[0]),
+            num_columns,
+            find_first_greater,
+            nulls_appear_before_values,
+            use_null_for_not_found);
+    );
+
+    auto first_greater_than        = column_wrapper<gdf_size_type>(first_greater_than_data, make_validity_initializer(first_greater_than_validity));
+
+//    print(results, "first_greater_than - actual results");
+//    print(first_greater_than, "first_greater_than - expected results");
+
+    expect_column(results, first_greater_than);
+
+    ASSERT_CUDF_SUCCESS(
+        gdf_multisearch(
+            results.get(),
+            &(haystack_columns[0]),
+            &(needle_columns[0]),
+            num_columns,
+            find_first_greater_or_equal,
+            nulls_appear_before_values,
+            use_null_for_not_found);
+    );
+
+    auto first_greater_or_equal_to = column_wrapper<gdf_size_type>(first_greater_or_equal_to_data, make_validity_initializer(first_greater_or_equal_to_validity));
+
+//    print(results, "first_greater_or_equal_to - actual results");
+//    print(first_greater_or_equal_to, "first_greater_or_equal_to - expected results");
+
+    expect_column(results, first_greater_or_equal_to);
+}
+
+TEST(Multisearch, multiple_columns_multiple_needles)
+{
+    using element_types = std::tuple<int32_t, float, int8_t>;
+    using type_0 = typename std::tuple_element<0, element_types>::type;
+    using type_1 = typename std::tuple_element<1, element_types>::type;
+    using type_2 = typename std::tuple_element<2, element_types>::type;
+
+    gdf_column_index_type num_columns { std::tuple_size<element_types>::value };
+
+    std::vector<type_0> haystack_data_0  {  10,  20,  20,  20,  20,  20,  50 };
+    std::vector<type_1> haystack_data_1  { 5.0,  .5,  .5,  .7,  .7,  .7,  .7 };
+    std::vector<type_2> haystack_data_2  {  90,  77,  78,  61,  62,  63,  41 };
+
+    std::vector<type_0> needle_data_0  { 0,  0,  0,  0, 10, 10, 10, 10, 10, 10, 10, 10, 11, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 30, 50, 60 };
+    std::vector<type_1> needle_data_1  { 0,  0,  6,  5,  0,  5,  5,  5,  5,  6,  6,  6,  9,  0, .5, .5, .5, .5, .6, .6, .6, .7, .7, .7, .7, .7, .5 };
+    std::vector<type_2> needle_data_2  { 0, 91,  0, 91,  0, 79, 90, 91, 77, 80, 90, 91, 91,  0, 76, 77, 78, 30, 65, 77, 78, 80, 62, 78, 64, 41, 20 };
+
+
+    std::vector<gdf_size_type> first_greater_than_data
+                                       { 0,  0,  0,  0,  0,  0,  1,  1,  0,  1,  1,  1,  1,  1,  1,  2,  3,  1,  3,  3,  3,  6,  5,  6,  6,  7,  7 };
+    std::vector<gdf_size_type> first_greater_or_equal_to_data
+                                       { 0,  0,  0,  0,  0,  0,  0,  1,  0,  1,  1,  1,  1,  1,  1,  1,  2,  1,  3,  3,  3,  6,  4,  6,  6,  6,  7 };
+
+    auto haystack_column_wrappers = std::make_tuple(
+        column_wrapper<type_0>(haystack_data_0),
+        column_wrapper<type_1>(haystack_data_1),
+        column_wrapper<type_2>(haystack_data_2)
+    );
+    auto needle_column_wrappers = std::make_tuple(
+        column_wrapper<type_0>(needle_data_0),
+        column_wrapper<type_1>(needle_data_1),
+        column_wrapper<type_2>(needle_data_2)
+    );
+    auto results                = column_wrapper<gdf_size_type      >(needle_data_0.size(), non_nullable);
+
+    gdf_column* haystack_columns[] = {
+        get<0>(haystack_column_wrappers).get(),
+        get<1>(haystack_column_wrappers).get(),
+        get<2>(haystack_column_wrappers).get()
+    };
+    gdf_column* needle_columns[] = {
+        get<0>(needle_column_wrappers).get(),
+        get<1>(needle_column_wrappers).get(),
+        get<2>(needle_column_wrappers).get()
+    };
+
+    ASSERT_CUDF_SUCCESS( fill(*results.get(), gdf_size_type{0xDEADBEEF}) );
+
+    ASSERT_CUDF_SUCCESS(
+        gdf_multisearch(
+            results.get(),
+            haystack_columns,
+            needle_columns,
+            num_columns,
+            find_first_greater,
+            nulls_appear_before_values,
+            use_haystack_length_for_not_found)
+    );
+
+    auto first_greater_than        = column_wrapper<gdf_size_type>(first_greater_than_data);
+
+//    print(results, "first_greater_than - actual results");
+//    print(first_greater_than, "first_greater_than - expected results");
+
+    expect_column(results, first_greater_than);
+
+    ASSERT_CUDF_SUCCESS(
+        gdf_multisearch(
+            results.get(),
+            haystack_columns,
+            needle_columns,
+            num_columns,
+            find_first_greater_or_equal,
+            nulls_appear_before_values,
+            use_haystack_length_for_not_found)
+    );
+
+    auto first_greater_or_equal_to = column_wrapper<gdf_size_type>(first_greater_or_equal_to_data);
+
+//    print(results, "first_greater_or_equal_to - actual results");
+//    print(first_greater_or_equal_to, "first_greater_or_equal_to - expected results");
+
+    expect_column(results, first_greater_or_equal_to);
 }

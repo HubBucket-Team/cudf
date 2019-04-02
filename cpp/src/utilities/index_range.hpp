@@ -69,6 +69,7 @@ struct index_range {
 
     static __fhd__ index_range constexpr trivial_empty() { return { 0, 0 }; }
     static __fhd__ index_range constexpr singular(I index) { return { index, index+1 }; }
+    static __fhd__ index_range constexpr empty_at(I index) { return { index, index }; }
 
     __fhd__ void swap(index_range& other) {
         index_range tmp = other;

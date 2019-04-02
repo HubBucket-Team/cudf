@@ -336,5 +336,4 @@ bool gdf_equal_columns(gdf_column* left, gdf_column* right)
   return true;
 }
 
-
-#endif
+#endif // GDF_TEST_UTILS_H
