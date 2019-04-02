@@ -20,7 +20,7 @@
 
 #include <climits>
 #include <cstdint>
-
+#include <cudf/types.h>
 #include <utilities/cudf_utils.h>
 #include <utilities/miscellany.hpp>
 #include <stdint.h>

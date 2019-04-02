@@ -4,6 +4,8 @@
 
 #include <climits>
 
+#include <climits>
+
 
 gdf_valid_type * get_gdf_valid_from_device(gdf_column* column) {
     gdf_valid_type * host_valid_out;
