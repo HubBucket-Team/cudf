@@ -224,6 +224,7 @@ add_library(cudf SHARED
             src/replace/replace.cu
             src/reductions/scan.cu
             src/transpose/transpose.cu
+	    src/search/multisearch.cu
             src/sortedmerge/alloc_filtered_cols.cu
             src/sortedmerge/pair_rtti.cu
             src/sortedmerge/typed_sorted_merge.cu
@@ -246,6 +247,7 @@ add_library(cudf SHARED
             src/io/comp/gpuinflate.cu
             src/utilities/cuda_utils.cu
             src/utilities/error_utils.cpp
+            src/utilities/column_utils.cpp
             src/utilities/nvtx/nvtx_utils.cpp
             src/copying/gather.cu
             src/copying/scatter.cu

@@ -38,6 +38,10 @@ extern "C" {
 #endif
 #endif
 
+#ifdef __CUDA_ARCH__
+#define DEVICE_SIDE_COMPILATION
+#endif
+
 namespace cudf {
 
 constexpr inline bool is_an_integer(gdf_dtype element_type)
@@ -261,10 +265,16 @@ inline constexpr auto form_naive_1d_grid(
     return one_dimensional_grid_params_t { num_blocks, threads_per_block };
 }
 
+// The standard library version is not constexpr before C++20!
+template <typename T>
+constexpr __device__ __host__ void swap(T& lhs, T& rhs)
+{
+    T tmp { lhs };
+    lhs = rhs;
+    rhs = tmp;
+}
 
 } // namespace util
-
-
 
 } // namespace cudf
 

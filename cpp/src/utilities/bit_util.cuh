@@ -18,6 +18,9 @@
  */
 #pragma once
 
+#include <climits>
+#include <cstdint>
+
 #include <utilities/cudf_utils.h>
 #include <utilities/miscellany.hpp>
 
