@@ -1,5 +1,6 @@
 
 #include "utils.cuh"
+#include <utilities/bit_util.cuh>
 
 #include <climits>
 
@@ -82,3 +83,31 @@ std::string chartobin(gdf_valid_type c, int size/* = 8*/)
 auto print_binary(gdf_valid_type n, int size) -> void {
     std::cout << chartobin(n) << "\t sz: " <<  size <<  "\tbinary: " << chartobin(n, size) << std::endl;
 }
+/*
+void initialize_stencil_values(std::vector<gdf_bool>& v, const size_t length,
+        stencil_functor_initializer f) {
+    v.resize(length);
+    
+    if (!f) return;
+    
+    for (size_t i = 0; i < length; ++i) {
+        f(i, v);
+    }
+}
+
+// Create the valid pointer and init randomly the last half column
+void initialize_valids(host_valid_pointer& valid_ptr, size_t length, valids_functor_initializer f)
+{
+    auto deleter = [](gdf_valid_type* valid) { delete[] valid; };
+    auto n_bytes = get_number_of_bytes_for_valid(length);
+    auto valid_bits = new gdf_valid_type[n_bytes]();
+    
+    if (f) {
+        for (size_t i = 0; i < length; ++i) {
+            f(i, length, valid_bits);
+        }
+    }
+    
+    valid_ptr = host_valid_pointer{ valid_bits, deleter };
+}
+*/
