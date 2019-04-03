@@ -20,7 +20,6 @@
 #include <utilities/cudf_utils.h>
 #include <utilities/bit_util.cuh>
 #include <utilities/miscellany.hpp>
-#include <bitmask/bit_mask.h>
 #include <utilities/error_utils.hpp>
 
 namespace bit_mask {

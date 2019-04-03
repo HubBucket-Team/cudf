@@ -19,6 +19,7 @@
 
 #include <limits>
 #include "utilities/cudf_utils.h"
+#include <thrust/tuple.h>
 
 
 /* --------------------------------------------------------------------------*/
