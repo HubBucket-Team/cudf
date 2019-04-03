@@ -19,6 +19,7 @@
 #include <utilities/cudf_utils.h>
 #include <utilities/error_utils.hpp>
 #include <utilities/miscellany.hpp>
+#include <utilities/column_utils.hpp>
 #include <utilities/device_side_utilities.cuh>
 #include <utilities/type_dispatcher.hpp>
 #include <utilities/bit_util.cuh>
@@ -919,7 +920,7 @@ gdf_error gdf_apply_boolean_mask(
         // Note that if we've failed failed before reaching this point, memory leaks
     CUDA_TRY (cudaGetLastError() );
 	return GDF_SUCCESS;
-} 
+}
 
 #undef __fd__
 #undef __fhd__
