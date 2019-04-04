@@ -1,6 +1,7 @@
 # cuDF 0.7.0 (Date TBD)
 
 ## New Features
+- PR #1142 Added `GDF_BOOL` column type
 
 - PR #982 Implement gdf_group_by_without_aggregations and gdf_unique_indices functions
 - PR #1194 Implement overloads for CUDA atomic operations
@@ -14,6 +15,7 @@
 - PR #1149 CSV Reader: Change convertStrToValue() functions to `__device__` only
 - PR #1238 Improve performance of the CUDA trie used in the CSV reader
 - PR #1278 Update CONTRIBUTING for new conda environment yml naming conventions
+- PR #1163 Refactored UnaryOps. Reduced API to two functions: `gdf_unary_math` and `gdf_cast`. Added `abs`, `-`, and `~` ops. Changed bindings to Cython
 - PR #1284 Update docs version
 - PR #1287 add exclude argument to cudf.select_dtype function
 - PR #1286 Refactor some of the CSV Reader kernels into generic utility functions
@@ -38,6 +40,7 @@
 
 - PR #760 Raise `FileNotFoundError` instead of `GDF_FILE_ERROR` in `read_csv` if the file does not exist
 - PR #539 Add Python bindings for replace function
+- PR #817 Added GDF_BOOL data type to CUDA code
 - PR #823 Add Doxygen configuration to enable building HTML documentation for libcudf C/C++ API
 - PR #807 CSV Reader: Add byte_range parameter to specify the range in the input file to be read
 - PR #857 Add Tail method for Series/DataFrame and update Head method to use iloc
@@ -83,6 +86,7 @@
 - PR #1159 Add Python bindings for libcudf dlpack functions
 - PR #1155 Add __array_ufunc__ for DataFrame and Series for sqrt
 - PR #1168 to_frame for series accepts a name argument
+
 
 ## Improvements
 

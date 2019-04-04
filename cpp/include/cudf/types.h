@@ -4,12 +4,12 @@
 typedef int gdf_size_type; ///< Limits the maximum size of a gdf_column to 2^31-1
 typedef gdf_size_type gdf_index_type;
 typedef unsigned char gdf_valid_type;
-typedef  long  gdf_date64;
-typedef  int    gdf_date32;
-typedef  int    gdf_category;
-typedef  long  gdf_timestamp;
-typedef int   gdf_nvstring_category;
+typedef	long	gdf_date64;
+typedef	int		gdf_date32;
+typedef	int		gdf_category;
+typedef	long	gdf_timestamp;
 typedef signed char gdf_bool;
+typedef int   gdf_nvstring_category;
 
 
  /**
@@ -28,6 +28,7 @@ typedef enum {
     GDF_TIMESTAMP,  ///< Exact timestamp encoded with int64 since UNIX epoch (Default unit millisecond)
     GDF_CATEGORY,
     GDF_STRING,
+    GDF_BOOL,
     GDF_STRING_CATEGORY, ///< Stores indices of an NVCategory in data and in extra col info a reference to the nv_category
     N_GDF_TYPES,   ///< additional types should go BEFORE N_GDF_TYPES
 } gdf_dtype;
@@ -224,6 +225,26 @@ typedef enum {
   GDF_COALESCE,       ///< operator x,y  x is null ? y : x
   GDF_INVALID_BINARY  ///< invalid operation
 } gdf_binary_operator;
+
+
+/**
+ * @brief Types of unary math operations that can be performed on data.
+ */
+typedef enum {
+  GDF_SIN,          ///< Trigonometric sine
+  GDF_COS,          ///< Trigonometric cosine
+  GDF_TAN,          ///< Trigonometric tangent
+  GDF_ARCSIN,       ///< Trigonometric sine inverse
+  GDF_ARCCOS,       ///< Trigonometric cosine inverse
+  GDF_ARCTAN,       ///< Trigonometric tangent inverse
+  GDF_EXP,          ///< Exponential (base e, Euler number)
+  GDF_LOG,          ///< Natural Logarithm (base e)
+  GDF_SQRT,         ///< Square-root (x^0.5)
+  GDF_CEIL,         ///< Smallest integer value not less than arg
+  GDF_FLOOR,        ///< largest integer value not greater than arg
+  GDF_ABS,          ///< Absolute value
+  GDF_BIT_INVERT,   ///< Bitwise Not (~)
+} gdf_unary_math_op;
 
 
 

@@ -214,7 +214,7 @@ add_library(cudf SHARED
             src/binary/jit/util/type.cpp
             src/bitmask/bitmask_ops.cu
             src/bitmask/valid_ops.cu
-            src/compaction/stream_compaction_ops.cu
+            src/compaction/stream_compaction.cu
             src/compaction/apply_stencil.cu
             src/datetime/datetime_ops.cu
             src/hash/hashing.cu
@@ -224,7 +224,8 @@ add_library(cudf SHARED
             src/replace/replace.cu
             src/reductions/scan.cu
             src/transpose/transpose.cu
-            src/unary/unary_ops.cu
+            src/unary/math_ops.cu
+            src/unary/cast_ops.cu
             # src/windowed/windowed_ops.cu ... this is broken
             src/io/convert/csr/cudf_to_csr.cu
             src/io/utilities/parsing_utils.cu
