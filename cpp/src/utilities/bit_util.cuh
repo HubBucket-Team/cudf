@@ -89,6 +89,11 @@ void turn_bit_off(BitContainer* bits, Size bit_index)
     bits[container_index] &= ~((BitContainer{1} << intra_container_index));
 }
 
+CUDA_HOST_DEVICE_CALLABLE size_t last_byte_index(size_t column_size)
+{
+  return (column_size + 8 - 1) / 8;
+}
+
 /**
  * Checks if a bit is set within a bit-container, in which the bits
  * are ordered LSB to MSB
@@ -119,38 +124,9 @@ constexpr CUDA_HOST_DEVICE_CALLABLE bool bit_is_set(const BitContainer* bits, Si
     return bit_is_set<BitContainer, Size>(bits[container_index], bit_index);
 }
 
-
-// TODO: Check whether the following 5 functions (up to chartobin) are actually used anywhere.
-
-CUDA_HOST_DEVICE_CALLABLE
-  uint8_t
-  byte_bitmask(size_t i)
-{
-  static uint8_t kBitmask[8] = { 1, 2, 4, 8, 16, 32, 64, 128 };
-  return kBitmask[i];
-}
-
-CUDA_HOST_DEVICE_CALLABLE
-  uint8_t
-  flipped_bitmask(size_t i)
-{
-  static uint8_t kFlippedBitmask[] = { 254, 253, 251, 247, 239, 223, 191, 127 };
-  return kFlippedBitmask[i];
-}
-
-CUDA_HOST_DEVICE_CALLABLE void turn_bit_on(uint8_t* const bits, size_t i)
-{
-  bits[i / 8] |= byte_bitmask(i % 8);
-}
-
-CUDA_HOST_DEVICE_CALLABLE void turn_bit_off(uint8_t* const bits, size_t i)
-{
-  bits[i / 8] &= flipped_bitmask(i % 8);
-}
-
-CUDA_HOST_DEVICE_CALLABLE size_t last_byte_index(size_t column_size)
-{
-  return (column_size + 8 - 1) / 8;
+template <typename BitContainer, typename Size>
+inline gdf_size_type packed_bit_sequence_size_in_bytes (Size num_bits) {
+    return cudf::util::div_rounding_up_safe<Size>(num_bits, size_in_bits<BitContainer>());
 }
 
 static inline std::string chartobin(gdf_valid_type c, size_t size = 8)

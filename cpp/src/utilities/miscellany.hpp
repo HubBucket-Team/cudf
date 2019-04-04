@@ -217,15 +217,17 @@ clear_lower_bits_safe(
 // TODO: Use the cuda-api-wrappers library instead
 inline constexpr auto form_naive_1d_grid(
     int overall_num_elements,
-    int threads_per_block,
+    int num_threads_per_block,
     int elements_per_thread = 1)
 {
     struct one_dimensional_grid_params_t {
         int num_blocks;
-        int threads_per_block;
+        int num_threads_per_block;
     };
-    auto num_blocks = util::div_rounding_up_safe(overall_num_elements, elements_per_thread * threads_per_block);
-    return one_dimensional_grid_params_t { num_blocks, threads_per_block };
+    auto num_blocks = util::div_rounding_up_safe(
+        overall_num_elements,
+        elements_per_thread * num_threads_per_block);
+    return one_dimensional_grid_params_t { num_blocks, num_threads_per_block };
 }
 
 // The standard library version is not constexpr before C++20!
