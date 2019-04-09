@@ -162,12 +162,12 @@ find_file(NVSTRINGS_INCLUDE "NVStrings.h"
           HINTS "$ENV{NVSTRINGS_ROOT}/include"
                 "$ENV{CONDA_PREFIX}/include/nvstrings"
                 "$ENV{CONDA_PREFIX}/include")
-                
+
 find_file(NVCATEGORY_INCLUDE "NVCategory.h"
           HINTS "$ENV{NVSTRINGS_ROOT}/include"
                 "$ENV{CONDA_PREFIX}/include/nvstrings"
-                "$ENV{CONDA_PREFIX}/include")                
-                
+                "$ENV{CONDA_PREFIX}/include")
+
 find_library(NVSTRINGS_LIBRARY "NVStrings"
              HINTS "$ENV{NVSTRINGS_ROOT}/lib"
                    "$ENV{CONDA_PREFIX}/lib")
@@ -328,6 +328,15 @@ install(TARGETS cudf
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf.h
         DESTINATION include)
 
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/copying.hpp
+        DESTINATION include)
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/types.hpp
+        DESTINATION include)
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/utilities/error_utils.hpp
+        DESTINATION include/utilities)
+
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf
         DESTINATION include)
 
@@ -347,9 +356,3 @@ add_custom_command(OUTPUT CUDF_DOXYGEN
                    VERBATIM)
 
 add_custom_target(doc DEPENDS CUDF_DOXYGEN)
-
-
-
-
-
-
