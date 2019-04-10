@@ -63,10 +63,6 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode=arch=compute_70,code=sm_70 -g
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
 
-# suppress SHFL warnings caused by Modern GPU
-# TODO: remove this when Modern GPU is removed or fixed to use shfl_sync
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Werror cross-execution-space-call -Wno-deprecated-declarations -Xptxas --disable-warnings")
-
 # set warnings as errors
 # TODO: remove `no-maybe-unitialized` used to suppress warnings in rmm::exec_policy
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Werror cross-execution-space-call -Xcompiler -Wall,-Werror")
@@ -142,7 +138,6 @@ include_directories("${ARROW_INCLUDE_DIR}"
                     "${CMAKE_SOURCE_DIR}/src"
                     "${CMAKE_SOURCE_DIR}/thirdparty/cub"
                     "${CMAKE_SOURCE_DIR}/thirdparty/jitify"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/moderngpu/src"
                     "${CMAKE_SOURCE_DIR}/thirdparty/rmm/include"
                     "${CMAKE_SOURCE_DIR}/thirdparty/dlpack/include"
                     "${ZLIB_INCLUDE_DIRS}")
@@ -219,6 +214,7 @@ add_library(cudf SHARED
             src/bitmask/bitmask_ops.cu
             src/bitmask/valid_ops.cu
             src/compaction/stream_compaction_ops.cu
+            src/compaction/apply_stencil.cu
             src/datetime/datetime_ops.cu
             src/hash/hashing.cu
             src/hash/hash_ops.cu
@@ -333,7 +329,7 @@ add_custom_command(OUTPUT INSTALL_PYTHON_CFFI
 
 add_custom_target(install_python DEPENDS cudf rmm_install_python PYTHON_CFFI INSTALL_PYTHON_CFFI)
 
-###################################################################################################
+	###################################################################################################
 # - make documentation ----------------------------------------------------------------------------
 
 add_custom_command(OUTPUT CUDF_DOXYGEN

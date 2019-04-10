@@ -67,8 +67,7 @@ set(FILTER_TEST_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/utilities/cudf_test_utils.cu"
     "${CMAKE_CURRENT_SOURCE_DIR}/filter/helper/utils.cuh"
     "${CMAKE_CURRENT_SOURCE_DIR}/filter/helper/utils.cu"
-    "${CMAKE_CURRENT_SOURCE_DIR}/filter/test_example.cu"
-    "${CMAKE_CURRENT_SOURCE_DIR}/filter/test_filter_ops.cu")
+    "${CMAKE_CURRENT_SOURCE_DIR}/filter/test_example.cu")
 
 ConfigureTest(FILTER_TEST "${FILTER_TEST_SRC}")
 
@@ -79,6 +78,17 @@ set(GROUPBY_TEST_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/groupby_test.cu")
 
 ConfigureTest(GROUPBY_TEST "${GROUPBY_TEST_SRC}")
+
+set(GROUPBY_VALIDS_TEST_SRC 
+    "${CMAKE_CURRENT_SOURCE_DIR}/groupby/groupby_withvalids_test.cu")
+
+ConfigureTest(GROUPBY_VALIDS_TEST "${GROUPBY_VALIDS_TEST_SRC}")
+
+
+set(GROUPBY_WO_AGG_TEST_SRC 
+    "${CMAKE_CURRENT_SOURCE_DIR}/groupby/without_agg/groupby_wo_agg_test.cu")
+
+ConfigureTest(GROUPBY_WO_AGG_TEST "${GROUPBY_WO_AGG_TEST_SRC}")
 
 ###################################################################################################
 # - join tests ------------------------------------------------------------------------------------
@@ -248,6 +258,8 @@ set(TRANSPOSE_TEST_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/transpose/transpose_test.cu")
 
 ConfigureTest(TRANSPOSE_TEST "${TRANSPOSE_TEST_SRC}")
+
+
 
 ###################################################################################################
 # - table tests -----------------------------------------------------------------------------------

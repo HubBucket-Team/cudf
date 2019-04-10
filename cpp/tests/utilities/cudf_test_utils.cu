@@ -20,6 +20,8 @@
 #include "cudf_test_utils.cuh"
 #include <nvstrings/NVCategory.h>
 
+#include <algorithm>
+
 namespace {
 
 namespace detail {
@@ -95,7 +97,8 @@ struct column_printer {
             }
         }
     }
-};
+}; // struct column_printer
+
 } // namespace
 
 void print_gdf_column(gdf_column const * the_column, unsigned min_printing_width)
@@ -112,15 +115,17 @@ void print_valid_data(const gdf_valid_type *validity_mask,
   error = cudaGetLastError();
 
   std::vector<gdf_valid_type> h_mask(gdf_valid_allocation_size(num_rows));
-  if (error != cudaErrorInvalidValue && attrib.memoryType == cudaMemoryTypeDevice)
+  if (error != cudaErrorInvalidValue && isDeviceType(attrib))
     cudaMemcpy(h_mask.data(), validity_mask, gdf_valid_allocation_size(num_rows), cudaMemcpyDeviceToHost);
   else
     memcpy(h_mask.data(), validity_mask, gdf_valid_allocation_size(num_rows));
 
+  // Note: This also prints any "slack" bits at the end of the last bit container/
+  // bit set, when the column length is not a multiple of GDF_VALID_BITSIZE.
   std::transform(
       h_mask.begin(), h_mask.begin() + gdf_num_bitmask_elements(num_rows),
       std::ostream_iterator<std::string>(std::cout, " "), [](gdf_valid_type x) {
-        auto bits = std::bitset<GDF_VALID_BITSIZE>(x).to_string('@');
+        auto bits = std::bitset<GDF_VALID_BITSIZE>(x).to_string(null_representative);
         return std::string(bits.rbegin(), bits.rend());
       });
   std::cout << std::endl;

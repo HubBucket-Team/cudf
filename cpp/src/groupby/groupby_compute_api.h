@@ -218,11 +218,13 @@ gdf_error GroupbyHash(gdf_table<size_type> const & groupby_input_table,
       if (status != GDF_SUCCESS)
         return status;
 
+      gdf_context ctxt;
+      ctxt.flag_null_sort_behavior = GDF_NULL_AS_LARGEST;
       status = gdf_order_by(groupby_output_table.get_columns(),             //input columns
                        nullptr,
                        groupby_output_table.get_num_columns(),                //number of columns in the first parameter (e.g. number of columsn to sort by)
                        &sorted_indices_col,            //a gdf_column that is pre allocated for storing sorted indices
-                       0);  //flag to indicate if nulls are to be considered smaller than non-nulls or viceversa
+                       &ctxt);  //flag to indicate if nulls are to be considered smaller than non-nulls or viceversa
       if (status != GDF_SUCCESS)
         return status;
 

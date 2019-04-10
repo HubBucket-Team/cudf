@@ -9,6 +9,7 @@ typedef  int    gdf_date32;
 typedef  int    gdf_category;
 typedef  long  gdf_timestamp;
 typedef int   gdf_nvstring_category;
+typedef signed char gdf_bool;
 
 
  /**
@@ -245,17 +246,35 @@ typedef enum {
 } gdf_unary_math_op;
 
 
-/** 
+
+/**  --------------------------------------------------------------------------* 
+ * @synopsis  These enums indicate how the nulls are treated in group_by/order_by operations.
+ * ----------------------------------------------------------------------------*/
+typedef enum {
+  GDF_NULL_AS_LARGEST = 0,           ///< NULLS are treated as the largest number in comparisons
+  GDF_NULL_AS_SMALLEST,              ///< NULLS are treated as the smallest number in comparisons
+  GDF_NULL_AS_LARGEST_FOR_MULTISORT  ///< In multicolumn sorting, a row with NULL in any column is treated as the largest number in comparisons                                     
+} gdf_nulls_sort_behavior;
+
+/** --------------------------------------------------------------------------*
  * @brief  This struct holds various information about how an operation should be 
  * performed as well as additional information about the input data.
- */
+ * ----------------------------------------------------------------------------*/
 typedef struct gdf_context_{
   int flag_sorted;              ///< Indicates if the input data is sorted. 0 = No, 1 = yes
   gdf_method flag_method;       ///< The method to be used for the operation (e.g., sort vs hash)
   int flag_distinct;            ///< for COUNT: DISTINCT = 1, else = 0
   int flag_sort_result;         ///< When method is GDF_HASH, 0 = result is not sorted, 1 = result is sorted
   int flag_sort_inplace;        ///< 0 = No sort in place allowed, 1 = else
+  bool flag_groupby_include_nulls; 
+                                /**< false = Nulls are ignored in group by keys (Pandas style), 
+                                true = Nulls are treated as values in group by keys where NULL == NULL (SQL style)*/ 
+  gdf_nulls_sort_behavior flag_null_sort_behavior; 
+                                /**< GDF_NULL_AS_LARGEST = Nulls are treated as largest,
+                                GDF_NULL_AS_SMALLEST    = Nulls are treated as smallest, 
+                                GDF_NULL_AS_LARGEST_FOR_MULTISORT = Special multi-sort case any row with null is largest*/ 
 } gdf_context;
+
 
 struct _OpaqueIpcParser;
 typedef struct _OpaqueIpcParser gdf_ipc_parser_type;

@@ -170,11 +170,17 @@ gdf_error gdf_column_concat(gdf_column *output, gdf_column *columns_to_concat[],
  * @param[in] Indicates if the input data is sorted. 0 = No, 1 = yes
  * @param[in] the method to be used for the operation (e.g., sort vs hash)
  * @param[in] for COUNT: DISTINCT = 1, else = 0
+ * @param[in] When method is GDF_HASH, 0 = result is not sorted, 1 = result is sorted
+ * @param[in] 0 = No sort in place allowed, 1 = else
+ * @param[in] GDF_NULL_AS_LARGEST = Nulls are treated as largest,
+ *            GDF_NULL_AS_SMALLEST    = Nulls are treated as smallest, 
+ *            GDF_NULL_AS_LARGEST_FOR_MULTISORT = Special multi-sort case any row with null is largest
  *
  * @returns GDF_SUCCESS upon successful compute, otherwise returns appropriate error code
  */
-gdf_error gdf_context_view(gdf_context *context, int flag_sorted, gdf_method flag_method,
-                           int flag_distinct, int flag_sort_result, int flag_sort_inplace);
+gdf_error gdf_create_context(gdf_context *context, int flag_sorted, gdf_method flag_method,
+                           int flag_distinct, int flag_sort_result, int flag_sort_inplace, 
+                           gdf_nulls_sort_behavior flag_null_sort_behavior);
 
 
 /* error handling */
@@ -1208,17 +1214,9 @@ gdf_error gdf_comparison_static_i16(gdf_column *lhs, int16_t value, gdf_column *
  */
 gdf_error gdf_comparison_static_i32(gdf_column *lhs, int32_t value, gdf_column *output,gdf_comparison_operator operation);
 
-/**
- * @brief  Compare every value on the left hand side to a static value and return a stencil in output which will have 1 when the comparison operation returns 1 and 0 otherwise
- *
- * @param[in] gdf_column of the input of type GDF_INT64
- * @param[in] Static value to compare against the input
- * @param[out] output gdf_column of type GDF_INT8. The output memory needs to be preallocated
- * @param[in] gdf_comparison_operator enum defining the comparison operator to be used
- *
- * @returns GDF_SUCCESS upon successful compute, otherwise returns appropriate error code
- */
-gdf_error gdf_comparison_static_i64(gdf_column *lhs, int64_t value, gdf_column *output,gdf_comparison_operator operation);
+//takes a stencil and uses it to compact a colum e.g. remove all values for which the stencil = 0
+//The lhs column is expected to have 0 null_count otherwise GDF_VALIDITY_UNSUPPORTED is returned
+gdf_error gpu_apply_stencil(gdf_column *lhs, gdf_column * stencil, gdf_column * output);
 
 /**
  * @brief  Compare every value on the left hand side to a static value and return a stencil in output which will have 1 when the comparison operation returns 1 and 0 otherwise
@@ -1257,15 +1255,14 @@ gdf_error gdf_comparison_static_f64(gdf_column *lhs, double value, gdf_column *o
 gdf_error gdf_comparison(gdf_column *lhs, gdf_column *rhs, gdf_column *output,gdf_comparison_operator operation);
 
 /**
- * @brief  takes a stencil and uses it to compact a colum e.g. remove all values for which the stencil = 0
+ * @brief Uses a (nullable) boolean mask as a filter on a column of data.
  *
- * @param[in] gdf_column of input of any type
- * @param[in] gdf_column holding the stencil
- * @param[out] output gdf_column of same type as input. The output memory needs to be preallocated to be the same size as input
- *
- * @returns GDF_SUCCESS upon successful compute, otherwise returns appropriate error code
+ * @param column[in] A potentially-nullable column of arbitrary type and length.
+ * @param boolean_mask[in] A column with boolean-in-a-byte elements, which may be nullable. non-NULL non-zero values
+ * signify the element of the corresponding index passes the filter.
+ * @param output[out] Made to hold a copy of all elements of @p column passing the filter defined by @p boolean_mask.
  */
-gdf_error gdf_apply_stencil(gdf_column *lhs, gdf_column * stencil, gdf_column * output);
+gdf_error gdf_apply_boolean_mask(gdf_column *column, gdf_column *boolean_mask, gdf_column *output);
 
 
 /*
@@ -1298,7 +1295,6 @@ gdf_error gdf_hash_columns(gdf_column ** columns_to_hash, int num_columns, gdf_c
 gdf_size_type gdf_dtype_size(gdf_dtype dtype);
 
 /**
- * @brief  returns the size in bytes of the data type of the gdf_column
  *
  * @param[in] gdf_column whose data type's byte width will be determined
  * @param[out] the byte width of the data type
@@ -1444,6 +1440,26 @@ gdf_error gdf_group_by_count(int ncols,
                              gdf_column* out_col_agg,
                              gdf_context* ctxt);
 
+
+
+gdf_error gdf_group_by_sort(gdf_column* in_key_columns[],
+                      int num_key_columns,
+                      gdf_column* in_aggregation_columns[],
+                      int num_aggregation_columns,
+                      gdf_agg_op agg_ops[],
+                      gdf_column* out_key_columns[],
+                      gdf_column* out_aggregation_columns[],
+                      gdf_context* options);
+
+gdf_error gdf_group_by_count_distinct(int ncols,         // # columns
+                           gdf_column** cols,            //input cols with 0 null_count otherwise GDF_VALIDITY_UNSUPPORTED is returned
+                           gdf_column* col_agg,          //column to aggregate on with 0 null_count otherwise GDF_VALIDITY_UNSUPPORTED is returned
+                           gdf_column* out_col_indices,  //if not null return indices of re-ordered rows
+                           gdf_column** out_col_values,  //if not null return the grouped-by columns
+                                                         //(multi-gather based on indices, which are needed anyway)
+                           gdf_column* out_col_agg,      //aggregation result
+                           gdf_context* ctxt);            //struct with additional info: bool is_sorted, flag_sort_or_hash, bool flag_count_distinct
+ 
 /**
  * @brief  Calculates exact quantiles
  *
@@ -1476,6 +1492,60 @@ gdf_error gdf_quantile_approx(gdf_column* col_in,
                               void* t_erased_res,
                               gdf_context* ctxt);
 
+/**
+ * @brief Sorts a set of columns based on specified "key" columns. Returns a column containing
+ * the offset to the start of each group.
+ *
+ * @param[in]  num_data_cols            The number of columns in the dataset.
+ * @param[in]  data_cols_in             The input columns in the dataset.
+ * @param[in]  num_key_cols             The number of key columns.
+ * @param[in]  key_col_indices          The indices of the of the key columns by which data will be grouped.
+ * @param[out] data_cols_out            The dataset sorted by the key columns. Must be pre-allocated to same number of columns and rows as data_cols_in.
+ * @param[out] group_start_indices      An array containing the starting indices of each key (group). Must be pre-allocated to same number of rows as data_cols_in.
+ * @param[out] num_group_start_indices  The number of elements in group_start_indices
+ * @param[in]  context                  The context used to control how nulls are treated in a sort and in group by
+ *             context->flag_null_sort_behavior
+ *                      GDF_NULL_AS_LARGEST = Nulls are treated as largest, 
+ *                      GDF_NULL_AS_SMALLEST = Nulls are treated as smallest, 
+ *                      GDF_NULL_AS_LARGEST_FOR_MULTISORT = Special multicolumn-sort case: A row with null in any column is largest
+ *             context-> flag_groupby_include_nulls 
+ *                      false = Nulls keys are ignored (Pandas style),
+ *                      true = Nulls keys are treated as values. NULL keys will compare as equal NULL == NULL (SQL style)
+ *
+ * @returns gdf_error with error code on failure, otherwise GDF_SUCESS
+ */
+gdf_error gdf_group_by_without_aggregations(gdf_size_type num_data_cols,
+                                            gdf_column ** data_cols_in,
+                                            gdf_size_type num_key_cols,
+                                            gdf_index_type const * key_col_indices,
+                                            gdf_column** data_cols_out,
+                                            gdf_index_type* group_start_indices,
+                                            gdf_size_type* num_group_start_indices, 
+                                            gdf_context* context);           
+
+  
+/**
+ * @brief Returns the first index of each unique row. Assumes the data is already sorted 
+ *
+ * @param[in]  num_data_cols        The number of columns in the dataset (assumed to already be sorted)
+ * @param[in]  data_cols_in         The input columns in the dataset
+ * @param[out] unique_indices       An array containing the first index of every unique row. (needs to be pre-allocated to have the same number of rows as data_cols_in)
+ * @param[out] num_unique_indices   The number of elements in unique_indices
+ * @param[in]  context              The options for controlling treatment of nulls
+ *             context->flag_null_sort_behavior
+ *                    GDF_NULL_AS_LARGEST = Nulls are treated as largest, 
+ *                    GDF_NULL_AS_SMALLEST = Nulls are treated as smallest, 
+ *                    GDF_NULL_AS_LARGEST_FOR_MULTISORT = Special multicolumn-sort case: A row with null in any column is largest
+ *
+ * @returns gdf_error with error code on failure, otherwise GDF_SUCESS
+ */
+gdf_error gdf_unique_indices(gdf_size_type num_data_cols,
+                     gdf_column const * const * data_cols_in,
+									   gdf_index_type* unique_indices,
+                     gdf_size_type* num_unique_indices, 
+									   gdf_context* context);
+
+
 /** 
  * @brief Replace elements from `col` according to the mapping `old_values` to
  *        `new_values`, that is, replace all `old_values[i]` present in `col` 
@@ -1495,15 +1565,17 @@ gdf_error gdf_find_and_replace_all(gdf_column*       col,
 /** 
  * @brief Sorts an array of gdf_column.
  * 
- * @param[in] input_columns Array of gdf_columns
- * @param[in] asc_desc Device array of sort order types for each column
+ * @param[in]  input_columns Array of gdf_columns
+ * @param[in]  asc_desc Device array of sort order types for each column
  *                     (0 is ascending order and 1 is descending). If NULL
  *                     is provided defaults to ascending order for evey column.
- * @param[in] num_inputs # columns
- * @param[in] flag_nulls_are_smallest Flag to indicate if nulls are to be considered
- *                                    smaller than non-nulls or viceversa
- * @param[out] output_indices Pre-allocated gdf_column to be filled with sorted
- *                            indices
+ * @param[in]  num_inputs # columns
+ * @param[out] output_indices Pre-allocated gdf_column to be filled with sorted indices
+ * @param[in]  context  The options for controlling treatment of nulls
+ *             context->flag_null_sort_behavior
+ *                        GDF_NULL_AS_LARGEST = Nulls are treated as largest, 
+ *                        GDF_NULL_AS_SMALLEST = Nulls are treated as smallest, 
+ *                        GDF_NULL_AS_LARGEST_FOR_MULTISORT = Special multicolumn-sort case: A row with null in any column is largest
  * 
  * @returns GDF_SUCCESS upon successful completion
  */
@@ -1511,7 +1583,8 @@ gdf_error gdf_order_by(gdf_column** input_columns,
                        int8_t*      asc_desc,
                        size_t       num_inputs,
                        gdf_column*  output_indices,
-                       int          flag_nulls_are_smallest);
+                       gdf_context * context);
+
 
 /**
  * @brief Replaces all null values in a column with either a specific value or corresponding values of another column

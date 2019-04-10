@@ -2,6 +2,7 @@
 
 ## New Features
 
+- PR #982 Implement gdf_group_by_without_aggregations and gdf_unique_indices functions
 - PR #1194 Implement overloads for CUDA atomic operations
 - PR #1292 Implemented Bitwise binary ops AND, OR, XOR (&, |, ^)
 - PR #1235 Add GPU-accelerated Parquet Reader
@@ -18,6 +19,10 @@
 - PR #1287 add exclude argument to cudf.select_dtype function
 - PR #1286 Refactor some of the CSV Reader kernels into generic utility functions
 - PR #1291 fillna in `Series.to_gpu_array()` and `Series.to_array()` can accept the scalar too now.
+- PR #1349 Replace modernGPU sort join with thrust.
+- PR #1363 Add a dataframe.mean(...) that raises NotImplementedError to satisfy `dask.dataframe.utils.is_dataframe_like`
+- PR #1319 CSV Reader: Use column wrapper for gdf_column output alloc/dealloc
+- PR #1376 Change series quantile default to linear
 
 ## Bug Fixes
 
@@ -31,6 +36,11 @@
 - PR #1326 Update build documentation to use -DCMAKE_CXX11_ABI=ON
 - PR #1334 Add "na_position" argument to CategoricalColumn sort_by_values
 - PR #1321 Fix out of bounds warning when checking Bzip2 header
+- PR #1359 Add atomicAnd/Or/Xor for integers
+- PR #1354 Fix `fillna()` behaviour when replacing values with different dtypes
+- PR #1347 Fixed core dump issue while passing dict_dtypes without column names in `cudf.read_csv()`
+- PR #1379 Fixed build failure caused due to error: 'col_dtype' may be used uninitialized
+
 
 # cuDF 0.6.0 (Date TBD)
 
@@ -128,6 +138,7 @@
 - PR #1183 Bump Arrow version to 0.12.1
 - PR #1208 Default to CXX11_ABI=ON
 - PR #1252 Fix NVStrings dependencies for cuda 9.2 and 10.0
+- PR #902 Improved performance for `gdf_apply_boolean_mask` (formerly `gpu_apply_stencil`)
 
 ## Bug Fixes
 
