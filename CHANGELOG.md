@@ -10,6 +10,7 @@
 - PR #1630 Add Python layer to the GPU-accelerated JSON reader
 - PR #1745 Add rounding of numeric columns via Numba
 - PR #1772 JSON reader: add support for BytesIO and StringIO input
+- PR #1428 Implemented a `gdf_multisearch()` function
 
 ## Improvements
 
