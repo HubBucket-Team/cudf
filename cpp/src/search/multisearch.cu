@@ -87,7 +87,9 @@ nullness_subrange(
     auto last_is_valid = gdf::util::bit_is_set(validity_pseudocolumn, range.last());
 
     if (first_is_valid and last_is_valid) {
-        return index_range::empty_at(range.start);
+        return index_range::empty_at(
+            nulls_appear_before_values ? range.start : range.end_
+        );
     }
 
     index_range transition_range = range;
