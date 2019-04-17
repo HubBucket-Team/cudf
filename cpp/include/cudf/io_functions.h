@@ -25,6 +25,11 @@ gdf_error read_csv(csv_read_arg *args);
 /*
  * @brief Interface to parse Parquet data to GDF columns
  */
+gdf_error read_parquet_schema(pq_read_arg *args);
+
+/*
+ * @brief Interface to parse Parquet data to GDF columns
+ */
 gdf_error read_parquet(pq_read_arg *args);
 
 /*

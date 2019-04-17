@@ -122,7 +122,7 @@ constexpr std::pair<gdf_dtype, gdf_dtype_extra_info> to_dtype(
     case parquet::BYTE_ARRAY:
     case parquet::FIXED_LEN_BYTE_ARRAY:
       // Can be mapped to GDF_CATEGORY (32-bit hash) or GDF_STRING (nvstring)
-      return std::make_pair(GDF_CATEGORY, gdf_dtype_extra_info{TIME_UNIT_NONE});
+      return std::make_pair(GDF_STRING, gdf_dtype_extra_info{TIME_UNIT_NONE});
     case parquet::INT96:
       // deprecated, only used by legacy implementations
     default:
@@ -230,7 +230,7 @@ struct ParquetMetadata : public parquet::FileMetaData {
 
 /**
  * @brief Returns the number of total pages from the given column chunks
- * 
+ *
  * @param[in] chunks List of column chunk descriptors
  *
  * @return size_t The total number of pages
@@ -696,6 +696,93 @@ gdf_error read_parquet(pq_read_arg *args) {
       auto str_data = NVStrings::create_from_index(str_list, num_rows);
       RMM_FREE(std::exchange(args->data[i]->data, str_data), 0);
     }
+  }
+  args->num_cols_out = num_columns;
+  args->num_rows_out = num_rows;
+  if (index_col != -1) {
+    args->index_col = (int *)malloc(sizeof(int));
+    *args->index_col = index_col;
+  } else {
+    args->index_col = nullptr;
+  }
+
+  return GDF_SUCCESS;
+}
+
+/**
+ * @brief Reads Apache Parquet schema and returns an array of gdf_columns.
+ *
+ * @param[in,out] args Structure containing input and output args
+ *
+ * @return gdf_error GDF_SUCCESS if successful, otherwise an error code.
+ **/
+gdf_error read_parquet_schema(pq_read_arg *args) {
+
+  int num_columns = 0;
+  int num_rows = 0;
+  int index_col = -1;
+
+  DataSource input(args->source);
+
+  ParquetMetadata md(input.data(), input.size());
+  CUDF_EXPECTS(md.get_num_rowgroups() > 0, "No row groups found");
+  CUDF_EXPECTS(md.get_num_columns() > 0, "No columns found");
+
+  // Obtain the index column if available
+  std::string index_col_name = md.get_index_column_name();
+
+  // Select only columns required (if it exists), otherwise select all
+  // For PANDAS behavior, always return index column unless there are no rows
+  std::vector<std::pair<int, std::string>> selected_cols;
+  if (args->use_cols) {
+    std::vector<std::string> use_names(args->use_cols,
+                                       args->use_cols + args->use_cols_len);
+    if (md.get_total_rows() > 0) {
+      use_names.push_back(index_col_name);
+    }
+    for (const auto &use_name : use_names) {
+      size_t index = 0;
+      for (const auto name : md.get_column_names()) {
+        if (name == use_name) {
+          selected_cols.emplace_back(index, name);
+        }
+        index++;
+      }
+    }
+  } else {
+    for (const auto& name : md.get_column_names()) {
+      if (md.get_total_rows() > 0 || name != index_col_name) {
+        selected_cols.emplace_back(selected_cols.size(), name);
+      }
+    }
+  }
+  num_columns = selected_cols.size();
+  CUDF_EXPECTS(num_columns > 0, "Filtered out all columns");
+
+  // Initialize gdf_columns, but hold off on allocating storage space
+  std::vector<gdf_column_wrapper> columns;
+  LOG_PRINTF("[+] Selected columns: %d\n", num_columns);
+  for (const auto &col : selected_cols) {
+    auto &col_schema = md.schema[md.row_groups[0].columns[col.first].schema_idx];
+    auto dtype_info = to_dtype(col_schema.type, col_schema.converted_type);
+
+    columns.emplace_back(static_cast<gdf_size_type>(md.get_total_rows()),
+                         dtype_info.first, dtype_info.second, col.second);
+
+    LOG_PRINTF(" %2zd: name=%s size=%zd type=%d data=%lx valid=%lx\n",
+               columns.size() - 1, columns.back()->col_name,
+               (size_t)columns.back()->size, columns.back()->dtype,
+               (uint64_t)columns.back()->data, (uint64_t)columns.back()->valid);
+
+    if (col.second == index_col_name) {
+      index_col = columns.size() - 1;
+    }
+  }
+
+  // Transfer ownership to raw pointer output arguments
+  args->data = (gdf_column **)malloc(sizeof(gdf_column *) * num_columns);
+  for (int i = 0; i < num_columns; ++i) {
+    args->data[i] = columns[i].release();
   }
   args->num_cols_out = num_columns;
   args->num_rows_out = num_rows;
