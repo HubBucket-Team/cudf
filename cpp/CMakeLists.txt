@@ -321,6 +321,9 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf.h
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf
         DESTINATION include)
+        
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/utilities/error_utils.hpp
+        DESTINATION include/utilities)
 
 add_custom_command(OUTPUT INSTALL_PYTHON_CFFI
                    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
