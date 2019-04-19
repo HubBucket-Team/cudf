@@ -319,9 +319,18 @@ install(TARGETS cudf
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf.h
         DESTINATION include)
 
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/copying.hpp
+        DESTINATION include)
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/types.hpp
+        DESTINATION include)
+
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf
         DESTINATION include)
-        
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/string/nvcategory_util.hpp
+        DESTINATION include/string)
+
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/utilities/error_utils.hpp
         DESTINATION include/utilities)
 
