@@ -63,10 +63,6 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode=arch=compute_70,code=sm_70 -g
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
 
-# suppress SHFL warnings caused by Modern GPU
-# TODO: remove this when Modern GPU is removed or fixed to use shfl_sync
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Werror cross-execution-space-call -Wno-deprecated-declarations -Xptxas --disable-warnings")
-
 # set warnings as errors
 # TODO: remove `no-maybe-unitialized` used to suppress warnings in rmm::exec_policy
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Werror cross-execution-space-call -Xcompiler -Wall,-Werror")
@@ -142,7 +138,6 @@ include_directories("${ARROW_INCLUDE_DIR}"
                     "${CMAKE_SOURCE_DIR}/src"
                     "${CMAKE_SOURCE_DIR}/thirdparty/cub"
                     "${CMAKE_SOURCE_DIR}/thirdparty/jitify"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/moderngpu/src"
                     "${CMAKE_SOURCE_DIR}/thirdparty/rmm/include"
                     "${CMAKE_SOURCE_DIR}/thirdparty/dlpack/include"
                     "${ZLIB_INCLUDE_DIRS}")
@@ -157,24 +152,28 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT
 
 ###################################################################################################
 # - nvstrings -------------------------------------------------------------------------------------
-
 find_file(NVSTRINGS_INCLUDE "NVStrings.h"
           HINTS "$ENV{NVSTRINGS_ROOT}/include"
+                "$ENV{NVSTRINGS_ROOT}/include/nvstrings"
                 "$ENV{CONDA_PREFIX}/include/nvstrings"
                 "$ENV{CONDA_PREFIX}/include")
 
 find_file(NVCATEGORY_INCLUDE "NVCategory.h"
           HINTS "$ENV{NVSTRINGS_ROOT}/include"
+                "$ENV{NVSTRINGS_ROOT}/include/nvstrings"
                 "$ENV{CONDA_PREFIX}/include/nvstrings"
                 "$ENV{CONDA_PREFIX}/include")
 
 find_library(NVSTRINGS_LIBRARY "NVStrings"
              HINTS "$ENV{NVSTRINGS_ROOT}/lib"
+                   "$ENV{NVSTRINGS_ROOT}/lib/nvstrings"
                    "$ENV{CONDA_PREFIX}/lib")
 
 find_library(NVCATEGORY_LIBRARY "NVCategory"
              HINTS "$ENV{NVSTRINGS_ROOT}/lib"
+                   "$ENV{NVSTRINGS_ROOT}/lib/nvstrings"
                    "$ENV{CONDA_PREFIX}/lib")
+
 
 if(NVSTRINGS_INCLUDE AND NVSTRINGS_LIBRARY)
     execute_process(WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
@@ -230,6 +229,8 @@ add_library(cudf SHARED
             src/sortedmerge/typed_sorted_merge.cu
             src/sortedmerge/sortedmerge.cu
             src/unary/unary_ops.cu
+            src/unary/math_ops.cu
+            src/unary/cast_ops.cu
             # src/windowed/windowed_ops.cu ... this is broken
             src/io/convert/csr/cudf_to_csr.cu
             src/io/utilities/parsing_utils.cu
@@ -334,11 +335,19 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/copying.hpp
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/types.hpp
         DESTINATION include)
 
+
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/utilities/error_utils.hpp
         DESTINATION include/utilities)
 
+
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf
         DESTINATION include)
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/string/nvcategory_util.hpp
+        DESTINATION include/string)
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/utilities/error_utils.hpp
+        DESTINATION include/utilities)
 
 add_custom_command(OUTPUT INSTALL_PYTHON_CFFI
                    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
