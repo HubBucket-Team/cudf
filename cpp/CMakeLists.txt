@@ -152,24 +152,28 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT
 
 ###################################################################################################
 # - nvstrings -------------------------------------------------------------------------------------
-
 find_file(NVSTRINGS_INCLUDE "NVStrings.h"
           HINTS "$ENV{NVSTRINGS_ROOT}/include"
+                "$ENV{NVSTRINGS_ROOT}/include/nvstrings"
                 "$ENV{CONDA_PREFIX}/include/nvstrings"
                 "$ENV{CONDA_PREFIX}/include")
-                
+            
 find_file(NVCATEGORY_INCLUDE "NVCategory.h"
           HINTS "$ENV{NVSTRINGS_ROOT}/include"
+                "$ENV{NVSTRINGS_ROOT}/include/nvstrings"
                 "$ENV{CONDA_PREFIX}/include/nvstrings"
                 "$ENV{CONDA_PREFIX}/include")                
                 
 find_library(NVSTRINGS_LIBRARY "NVStrings"
              HINTS "$ENV{NVSTRINGS_ROOT}/lib"
+                   "$ENV{NVSTRINGS_ROOT}/lib/nvstrings"
                    "$ENV{CONDA_PREFIX}/lib")
 
 find_library(NVCATEGORY_LIBRARY "NVCategory"
              HINTS "$ENV{NVSTRINGS_ROOT}/lib"
+                   "$ENV{NVSTRINGS_ROOT}/lib/nvstrings"
                    "$ENV{CONDA_PREFIX}/lib")
+
 
 if(NVSTRINGS_INCLUDE AND NVSTRINGS_LIBRARY)
     execute_process(WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
@@ -317,8 +321,20 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf.h
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/stream_compaction.hpp
         DESTINATION include)        
 
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/copying.hpp
+        DESTINATION include)
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/types.hpp
+        DESTINATION include)
+
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf
         DESTINATION include)
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/string/nvcategory_util.hpp
+        DESTINATION include/string)
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/utilities/error_utils.hpp
+        DESTINATION include/utilities)
 
 add_custom_command(OUTPUT INSTALL_PYTHON_CFFI
                    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}

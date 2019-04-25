@@ -1687,3 +1687,12 @@ gdf_error gdf_from_dlpack(gdf_column** columns,
 gdf_error gdf_to_dlpack(DLManagedTensor_ *tensor,
                         gdf_column const * const * columns,
                         gdf_size_type num_columns);
+
+/**
+ * @brief Takes an array of input_columns and makes it so that they all share the same keys in NVCategory
+ *
+ * @param[in] input_columns the columns whose categories must be synchronized
+ * @param[out] output_columns same data as input_columns but with categories syncrhonized
+ * @param[in] num_columns number of input columns
+ */
+gdf_error sync_column_categories(gdf_column * input_columns[],gdf_column * output_columns[], int num_columns);
