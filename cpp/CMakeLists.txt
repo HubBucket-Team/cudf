@@ -342,11 +342,14 @@ target_link_libraries(cudf rmm cudart cuda "${ARROW_LIB}" ${ZLIB_LIBRARIES} NVCa
 install(TARGETS cudf
         DESTINATION lib)
 
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf.h
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include
         DESTINATION include)
 
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf
-        DESTINATION include)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/string/nvcategory_util.hpp
+        DESTINATION include/string)
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/utilities/error_utils.hpp
+        DESTINATION include/utilities)
 
 ###################################################################################################
 # - make documentation ----------------------------------------------------------------------------
