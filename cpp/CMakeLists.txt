@@ -342,8 +342,26 @@ target_link_libraries(cudf rmm cudart cuda "${ARROW_LIB}" ${ZLIB_LIBRARIES} NVCa
 install(TARGETS cudf
         DESTINATION lib)
 
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf.h
         DESTINATION include)
+
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf
+        DESTINATION include)
+
+# - install additional targets for blazingsql
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/bitmask.hpp
+              ${CMAKE_CURRENT_SOURCE_DIR}/include/copying.hpp
+              ${CMAKE_CURRENT_SOURCE_DIR}/include/groupby.hpp
+              ${CMAKE_CURRENT_SOURCE_DIR}/include/reduction.hpp
+              ${CMAKE_CURRENT_SOURCE_DIR}/include/rolling.hpp
+              ${CMAKE_CURRENT_SOURCE_DIR}/include/stream_compaction.hpp
+              ${CMAKE_CURRENT_SOURCE_DIR}/include/table.hpp
+              ${CMAKE_CURRENT_SOURCE_DIR}/include/types.hpp
+        DESTINATION include)
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/string/nvcategory_util.hpp
+        DESTINATION include/string)
 
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/string/nvcategory_util.hpp
         DESTINATION include/string)
