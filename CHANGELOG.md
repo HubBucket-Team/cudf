@@ -11,7 +11,11 @@
 - PR #1630 Add Python layer to the GPU-accelerated JSON reader
 - PR #1745 Add rounding of numeric columns via Numba
 - PR #1772 JSON reader: add support for BytesIO and StringIO input
+<<<<<<< HEAD
 - PR #1527 Support GDF_BOOL8 in readers and writers
+=======
+- PR #1428 Implemented a `gdf_multisearch()` function
+>>>>>>> implement-multisearch-2
 
 ## Improvements
 - PR #1538 Replacing LesserRTTI with inequality_comparator
@@ -26,9 +30,14 @@
 - PR #1767 Speed up Python unit tests
 - PR #1770 Added build.sh script, updated CI scripts and documentation
 - PR #1739 ORC Reader: Add more pytest coverage
+<<<<<<< HEAD
 - PR #1795 Add printing of git submodule info to `print_env.sh`
 - PR #1796 Removing old sort based group by code and gdf_filter
 - PR #1811 Added funtions for copying/allocating `cudf::table`s
+=======
+- PR #1390 Added some basic utility functions for `gdf_column`'s
+- PR #1791 Added general column comparison code for testing
+>>>>>>> implement-multisearch-2
 
 ## Bug Fixes
 
@@ -153,24 +162,6 @@
 - PR #1481 Add cudf::table constructor to allocate a set of `gdf_column`s
 - PR #1484 Convert GroupBy CFFI to Cython
 - PR #1463 Allow and default melt keyword argument var_name to be None
-- PR #1486 Parquet Reader: Use device_buffer rather than device_ptr
-- PR #1525 Add cudatoolkit conda dependency
-- PR #1520 Renamed `src/dataframe` to `src/table` and moved `table.hpp`. Made `types.hpp` to be type declarations only.
-- PR #1492 Convert transpose CFFI to Cython
-- PR #1495 Convert binary and unary ops CFFI to Cython
-- PR #1503 Convert sorting and hashing ops CFFI to Cython
-- PR #1522 Use latest release version in update-version CI script
-- PR #1533 Remove stale join CFFI, fix memory leaks in join Cython
-- PR #1521 Added `row_bitmask` to compute bitmask for rows of a table. Merged `valids_ops.cu` and `bitmask_ops.cu`
-- PR #1553 Overload `hash_row` to avoid using intial hash values. Updated `gdf_hash` to select between overloads
-- PR #1585 Updated `cudf::table` to maintain own copy of wrapped `gdf_column*`s
-- PR #1559 Add `except +` to all Cython function definitions to catch C++ exceptions properly
-- PR #1617 `has_nulls` and `column_dtypes` for `cudf::table`
-- PR #1590 Remove CFFI from the build / install process entirely
-- PR #1536 Convert gpuarrow CFFI to Cython
-- PR #1655 Add `Column._pointer` as a way to access underlying `gdf_column*` of a `Column`
-- PR #1655 Update readme conda install instructions for cudf version 0.6 and 0.7
-
 
 ## Bug Fixes
 
