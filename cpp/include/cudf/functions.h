@@ -1169,7 +1169,6 @@ gdf_error gdf_from_dlpack(gdf_column** columns,
  */
 gdf_error gdf_to_dlpack(DLManagedTensor_ *tensor,
                         gdf_column const * const * columns,
-<<<<<<< HEAD
                         gdf_size_type num_columns);
 
 
@@ -1219,6 +1218,3 @@ gdf_multisearch(
     bool                   use_haystack_length_for_not_found
 );
 
-=======
-                        gdf_size_type num_columns);
->>>>>>> origin/feature/sorted-merger
