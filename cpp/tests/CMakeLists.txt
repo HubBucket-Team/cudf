@@ -315,6 +315,14 @@ set(DEVICE_TABLE_TEST_SRC
 ConfigureTest(DEVICE_TABLE_TEST "${DEVICE_TABLE_TEST_SRC}")
 
 ###################################################################################################
+# - sorted-merge tests -------------------------------------------------------------------------------------
+
+set(SORTED_MERGE_TEST_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/sorted-merge/sorted_merge-test.cu")
+
+ConfigureTest(SORTED_MERGE_TEST "${SORTED_MERGE_TEST_SRC}")
+
+###################################################################################################
 # - stream compaction tests -----------------------------------------------------------------------
 
 set(STREAM_COMPACTION_TEST_SRC

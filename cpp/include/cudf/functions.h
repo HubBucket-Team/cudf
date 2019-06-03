@@ -1053,7 +1053,6 @@ gdf_error gdf_order_by(gdf_column** input_columns,
  * @brief Replaces all null values in a column with either a specific value or corresponding values of another column
  *
  * This function is a binary function. It will take in two gdf_columns.
-
  * The first one is expected to be a regular gdf_column, the second one
  * has to be a column of the same type as the first, and it has to be of
  * size one or of the same size as the other column.
@@ -1073,6 +1072,27 @@ gdf_error gdf_order_by(gdf_column** input_columns,
  */
 gdf_error gdf_replace_nulls(gdf_column*       col_out,
                                    const gdf_column* col_in);
+
+/**
+ * @brief Merge sorted arrays of gdf_column.
+ *
+ * @Param[in] left_cols A column array to be merged with right_cols
+ * @Param[in] right_cols A column array to be merged with left_cols
+ * @Param[in] ncols Column length in left_cols and right_cols
+ * @Param[in] sort_by_cols Indices of left_cols and right_cols to be used
+ *                         for comparison criteria
+ * @Param[in] asc_desc Sort order types of columns indexed by sort_by_cols
+ * @Param[out] output_cols Merged columns
+ *
+ * @Returns GDF_SUCCESS upon successful merge
+ */
+gdf_error gdf_sorted_merge(gdf_column **     left_cols,
+                           gdf_column **     right_cols,
+                           const gdf_size_type ncols,
+                           gdf_column *      sort_by_cols,
+                           gdf_column *      asc_desc,
+                           gdf_column **     output_cols);
+
 /**
  * @brief Finds the indices of the bins in which each value of the column
  * belongs.
@@ -1149,6 +1169,7 @@ gdf_error gdf_from_dlpack(gdf_column** columns,
  */
 gdf_error gdf_to_dlpack(DLManagedTensor_ *tensor,
                         gdf_column const * const * columns,
+<<<<<<< HEAD
                         gdf_size_type num_columns);
 
 
@@ -1198,3 +1219,6 @@ gdf_multisearch(
     bool                   use_haystack_length_for_not_found
 );
 
+=======
+                        gdf_size_type num_columns);
+>>>>>>> origin/feature/sorted-merger
