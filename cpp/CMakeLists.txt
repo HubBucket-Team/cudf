@@ -359,6 +359,7 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/bitmask.hpp
               ${CMAKE_CURRENT_SOURCE_DIR}/include/groupby.hpp
               ${CMAKE_CURRENT_SOURCE_DIR}/include/reduction.hpp
               ${CMAKE_CURRENT_SOURCE_DIR}/include/rolling.hpp
+              ${CMAKE_CURRENT_SOURCE_DIR}/include/sorted_merge.hpp
               ${CMAKE_CURRENT_SOURCE_DIR}/include/stream_compaction.hpp
               ${CMAKE_CURRENT_SOURCE_DIR}/include/table.hpp
               ${CMAKE_CURRENT_SOURCE_DIR}/include/types.hpp
