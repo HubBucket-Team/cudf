@@ -3,6 +3,7 @@
 ## New Features
 
 - PR #2012 Add `reindex()` to DataFrame and Series
+- PR #2156 Add `search_ordered()` for gdf_column
 
 ## Improvements
 
