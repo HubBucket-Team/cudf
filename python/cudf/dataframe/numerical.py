@@ -24,6 +24,7 @@ import cudf.bindings.sort as cpp_sort
 import cudf.bindings.unaryops as cpp_unaryops
 import cudf.bindings.copying as cpp_copying
 import cudf.bindings.hash as cpp_hash
+import cudf.bindings.search as cpp_search
 from cudf.bindings.cudf_cpp import get_ctype_ptr
 
 
@@ -381,6 +382,11 @@ class NumericalColumn(columnops.TypedColumnBase):
         if found == -1:
             raise ValueError('value not found')
         return found
+
+    def searchsorted(self, value, side='left'):
+        value_col = columnops.as_column(value)
+        out = cpp_search.search_sorted(self, value_col, side)
+        return out.view(NumericalColumn, dtype=out.dtype)
 
 
 def numeric_column_binop(lhs, rhs, op, out_dtype, reflect=False):
