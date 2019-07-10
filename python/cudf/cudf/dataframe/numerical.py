@@ -384,8 +384,7 @@ class NumericalColumn(columnops.TypedColumnBase):
 
     def searchsorted(self, value, side='left'):
         value_col = columnops.as_column(value)
-        out = cpp_search.search_sorted(self, value_col, side)
-        return out.view(NumericalColumn, dtype=out.dtype)
+        return cpp_search.search_sorted(self, value_col, side)
 
 
 def numeric_column_binop(lhs, rhs, op, out_dtype, reflect=False):
