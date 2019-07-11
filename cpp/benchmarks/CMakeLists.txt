@@ -77,3 +77,11 @@ set(APPLY_BOOLEAN_MASK_BENCH_SRC
 
 ConfigureBench(APPLY_BOOLEAN_MASK_BENCH "${APPLY_BOOLEAN_MASK_BENCH_SRC}")
 
+###################################################################################################
+# - search benchmark ------------------------------------------------------------------------------
+
+set(SEARCH_BENCH_SRC
+  "${CMAKE_CURRENT_SOURCE_DIR}/search/search_benchmark.cpp")
+
+ConfigureBench(SEARCH_BENCH "${SEARCH_BENCH_SRC}")
+
