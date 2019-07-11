@@ -53,26 +53,95 @@ gdf_column apply_boolean_mask(gdf_column const &input,
                               gdf_column const &boolean_mask);
 
 /**
+ * @brief Filters a table using a column of boolean values as a mask.
+ *
+ * Given an input table and a mask column, an element `i` from each column of
+ * the input table is copied to the corresponding output column if the
+ * corresponding element `i` in the mask is non-null and `true`. This operation
+ * is stable: the input order is preserved.
+ *
+ * The input and mask columns must be of equal size (number of rows).
+ *
+ * The output table has number of rows equal to the number of elements in
+ * boolean_mask that are both non-null and `true`. Note that the output table
+ * memory is allocated by this function but must be freed by the caller when
+ * finished.
+ *
+ * @note that the @p boolean_mask may have just boolean data (no valid bitmask),
+ * or just a valid bitmask (no boolean data), or it may have both. The filter
+ * adapts to these three situations.
+ *
+ * @note if @p input.num_rows() is zero, there is no error, and an empty table
+ * is returned.
+ * 
+ * @param[in] input The input table to filter
+ * @param[in] boolean_mask A column of type GDF_BOOL8 used as a mask to filter
+ * the input column corresponding index passes the filter.
+  * @return cudf::table Table containing copy of all rows of @p input passing
+ * the filter defined by @p boolean_mask.
+ */
+table apply_boolean_mask(table const &input,
+                         gdf_column const &boolean_mask);
+
+/**
  * @brief Filters a column to remove null elements.
  *
  * Given an input column an element `i` from the input column is copied to the
  * output if the corresponding element `i` in the input's valid bitmask is
  * non-null.
  *
- * The output column has size equal to the number of elements in boolean_mask 
- * that are both non-null and `true`. Note that the output column memory is 
+ * Note that the output column memory is
  * allocated by this function but must be freed by the caller when finished.
+ *
+ * If the input column is not nullable, this function just returns a copy of the
+ * input.
  * 
- * If the input column is not nullable, this function just copies the input
- * to the output.
- * 
- * * @note if @p input.size is zero, there is no error, and an empty column is 
+ * @note if @p input.size is zero, there is no error, and an empty column is
  * returned.
- * 
+ *
  * @param[in] input The input column to filter
  * @return gdf_column Column containing copy of all non-null elements of @p input.
  */
 gdf_column drop_nulls(gdf_column const &input);
+
+
+enum any_or_all {
+  ANY = 0,
+  ALL
+};
+
+/**
+ * @brief Filters a table to remove null elements.
+ *
+ * Filters the rows of the input table considering only specified columns for
+ * validity / null values.
+ * 
+ * Given an input table, row `i` from the input columns is copied to the
+ * output if the row is not null. Null means:
+ *  - If @p drop_if is ANY, that there is a null in any column indexed by @p
+ *    column_indices at that row.
+ *  - If @p drop_if is ALL, that there are is a null in all columns indexed by
+ *    @p column_indices at that row.
+ *
+ * This operation is stable: the input order is preserved in the output.
+ * 
+ * Note that the memory for the columns of the output table is allocated by this
+ * function but must be freed by the caller when finished.
+ *
+ * Any non-nullable column in the input is treated as all non-null.
+ *
+ * @note if @p input.num_rows() is zero, or column_indices is empty, there is no
+ * error, and an empty table is returned
+ *
+ * @param[in] input The input table to filter
+ * @param[in] column_indices The indices of the columns to check for nulls
+ * @param[in] drop_if If ANY, drop rows that have a null in any column.
+ *                    If ALL, drop rows that have a null in all columns.
+ * @return cudf::table Table containing all non-null rows of the input table
+ */
+table drop_nulls(table const &input, 
+                 std::vector<gdf_index_type> const& column_indices,
+                 any_or_all drop_if);
 
 /**
  * @brief Choices for drop_duplicates API for retainment of duplicate rows

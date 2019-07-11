@@ -229,15 +229,16 @@ cdef gdf_column* column_view_from_column(col, col_name=None):
         c_col.col_name = NULL
     else:
         c_col.col_name = col_name
-
+    
     with nogil:
         gdf_column_view_augmented(<gdf_column*>c_col,
-                                <void*> data_ptr,
-                                <gdf_valid_type*> valid_ptr,
-                                len_col,
-                                c_dtype,
-                                c_null_count,
-                                c_extra_dtype_info)
+                                  <void*> data_ptr,
+                                  <gdf_valid_type*> valid_ptr,
+                                  len_col,
+                                  c_dtype,
+                                  c_null_count,
+                                  c_extra_dtype_info,
+                                  c_col.col_name)
 
     return c_col
 
@@ -301,7 +302,8 @@ cdef gdf_column* column_view_from_NDArrays(size, data, mask, dtype,
                                 c_size,
                                 c_dtype,
                                 c_null_count,
-                                c_extra_dtype_info)
+                                c_extra_dtype_info,
+                                NULL)
 
     return c_col
 
@@ -390,7 +392,7 @@ cdef gdf_column* column_view_from_string_column(col, col_name=None):
         c_col.col_name = NULL
     else:
         c_col.col_name = col_name
-
+    
     with nogil:
         gdf_column_view_augmented(<gdf_column*>c_col,
                                 <void*> data_ptr,
@@ -398,7 +400,8 @@ cdef gdf_column* column_view_from_string_column(col, col_name=None):
                                 len_col,
                                 c_dtype,
                                 c_null_count,
-                                c_extra_dtype_info)
+                                c_extra_dtype_info,
+                                c_col.col_name)
 
     return c_col
 
