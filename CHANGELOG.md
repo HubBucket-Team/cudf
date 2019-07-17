@@ -4,6 +4,7 @@
 
 - PR #2111 IO Readers: Support memory buffer, file-like object, and URL inputs
 - PR #2012 Add `reindex()` to DataFrame and Series
+- PR #2156 Add `search_ordered()` for gdf_column
 - PR #2098 Align DataFrame and Series indices before executing binary ops
 - PR #2160 Merge `dask-cudf` codebase into `cudf` repo
 - PR #2149 CSV Reader: Add `hex` dtype for explicit hexadecimal parsing
@@ -12,6 +13,7 @@
 - PR #2171 Add CodeCov integration, fix doc version, make --skip-tests work when invoking with source
 - PR #2215 `type_dispatcher` benchmark
 - PR #2179 Added Java quantiles
+- PR #1744 cudf::apply_boolean_mask and cudf::drop_nulls support for cudf::table inputs (multi-column)
 - PR #2157 Add __array_function__ to DataFrame and Series
 - PR #2212 Java support for ORC reader
 

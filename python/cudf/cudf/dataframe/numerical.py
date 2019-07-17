@@ -12,6 +12,7 @@ from librmm_cffi import librmm as rmm
 import cudf.bindings.binops as cpp_binops
 import cudf.bindings.copying as cpp_copying
 import cudf.bindings.hash as cpp_hash
+import cudf.bindings.search as cpp_search
 import cudf.bindings.reduce as cpp_reduce
 import cudf.bindings.replace as cpp_replace
 import cudf.bindings.sort as cpp_sort
@@ -418,6 +419,9 @@ class NumericalColumn(columnops.TypedColumnBase):
                 self[1:], self[:-1], 'le', 'bool'
             ).all()
         return self._is_monotonic_decreasing
+    def searchsorted(self, value, side='left'):
+        value_col = columnops.as_column(value)
+        return cpp_search.search_sorted(self, value_col, side)
 
 
 def numeric_column_binop(lhs, rhs, op, out_dtype, reflect=False):

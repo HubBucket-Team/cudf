@@ -33,7 +33,8 @@ include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
                     "${ARROW_INCLUDE_DIR}"
                     "${FLATBUFFERS_INCLUDE_DIR}"
                     "${RMM_INCLUDE}"
-                    "${NVSTRINGS_INCLUDE}")
+                    "${NVSTRINGS_INCLUDE}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}")
 
 ###################################################################################################
 # - library paths ---------------------------------------------------------------------------------
@@ -76,3 +77,17 @@ set(TD_BENCH_SRC
 
 ConfigureBench(TYPE_DISPATCHER_BENCH "${TD_BENCH_SRC}")
 
+# - apply_boolean_mask benchmark ------------------------------------------------------------------------------
+
+set(APPLY_BOOLEAN_MASK_BENCH_SRC
+  "${CMAKE_CURRENT_SOURCE_DIR}/stream_compaction/apply_boolean_mask_benchmark.cu")
+
+ConfigureBench(APPLY_BOOLEAN_MASK_BENCH "${APPLY_BOOLEAN_MASK_BENCH_SRC}")
+
+###################################################################################################
+# - search benchmark ------------------------------------------------------------------------------
+
+set(SEARCH_BENCH_SRC
+  "${CMAKE_CURRENT_SOURCE_DIR}/search/search_benchmark.cu")
+
+ConfigureBench(SEARCH_BENCH "${SEARCH_BENCH_SRC}")

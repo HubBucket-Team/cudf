@@ -284,7 +284,9 @@ add_library(cudf SHARED
             src/binaryop/jit/util/operator.cpp
             src/binaryop/jit/util/type.cpp
             src/bitmask/legacy/bitmask_ops.cu
-            src/stream_compaction/stream_compaction.cu
+            src/stream_compaction/apply_boolean_mask.cu
+            src/stream_compaction/drop_nulls.cu
+            src/stream_compaction/drop_duplicates.cu
             src/datetime/datetime_ops.cu
             src/hash/hashing.cu
             src/quantiles/quantiles.cu
@@ -338,7 +340,8 @@ add_library(cudf SHARED
             src/bitmask/legacy/legacy_bitmask.cpp
             src/gis/point_in_polygon.cu
             src/copying/copy_range.cu
-            src/filling/fill.cu)
+            src/filling/fill.cu
+            src/search/search.cu)
 
 #Override RPATH for cudf
 SET_TARGET_PROPERTIES(cudf PROPERTIES BUILD_RPATH "\$ORIGIN")

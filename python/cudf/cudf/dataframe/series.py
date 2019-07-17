@@ -2380,6 +2380,23 @@ class Series(object):
     @property
     def is_monotonic_decreasing(self):
         return self._column.is_monotonic_decreasing
+    def searchsorted(self, value, side='left'):
+        """Find indices where elements should be inserted to maintain order
+
+        Parameters
+        ----------
+        value : Column
+            Column of values to search for
+        side : str {‘left’, ‘right’} optional
+            If ‘left’, the index of the first suitable location found is given.
+            If ‘right’, return the last such index
+
+        Returns
+        -------
+        A Column of insertion points with the same shape as value
+        """
+        outcol = self._column.searchsorted(value, side)
+        return self._copy_construct(data=outcol)
 
 
 register_distributed_serializer(Series)
