@@ -219,7 +219,7 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT
 ###################################################################################################
 # - library targets -------------------------------------------------------------------------------
 
-add_library(cudf SHARED
+add_library(cudf STATIC
             src/comms/ipc/ipc.cu
             src/column/column.cpp
             src/column/context.cpp
