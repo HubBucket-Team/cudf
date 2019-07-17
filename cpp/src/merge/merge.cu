@@ -18,7 +18,7 @@
 #include <cudf/table.hpp>
 #include "table/device_table.cuh"
 #include "table/device_table_row_operators.cuh"
-#include "bitmask/bit_mask.cuh"
+#include "bitmask/legacy/bit_mask.cuh"
 #include "string/nvcategory_util.hpp"
 #include "rmm/thrust_rmm_allocator.h"
 #include "utilities/cuda_utils.hpp"
