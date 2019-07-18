@@ -104,6 +104,7 @@ set(GROUPBY_TEST_SRC
 
 ConfigureTest(GROUPBY_TEST "${GROUPBY_TEST_SRC}")
 
+
 set(HASH_GROUPBY_TEST_SRC 
     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/hash/single_column_count.cu"
     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/hash/single_column_sum.cu"
@@ -112,6 +113,13 @@ set(HASH_GROUPBY_TEST_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/hash/single_column_min.cu")
 
 ConfigureTest(HASH_GROUPBY_TEST "${HASH_GROUPBY_TEST_SRC}")
+
+
+#set(GROUPBY_VALIDS_TEST_SRC 
+#    "${CMAKE_CURRENT_SOURCE_DIR}/groupby/groupby_withvalids_test.cu")
+#
+#ConfigureTest(GROUPBY_VALIDS_TEST "${GROUPBY_VALIDS_TEST_SRC}")
+
 
 set(GROUPBY_WO_AGG_TEST_SRC 
     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/without_agg/groupby_wo_agg_test.cu")
@@ -254,6 +262,14 @@ set(JSON_TEST_SRC
 ConfigureTest(DECOMPRESSION_TEST "${DECOMPRESSION_TEST_SRC}")
 ConfigureTest(CSV_TEST "${CSV_TEST_SRC}")
 ConfigureTest(JSON_TEST "${JSON_TEST_SRC}")
+
+###################################################################################################
+# - search tests -------------------------------------------------------------------------------------
+
+set(SEARCH_TEST_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/search/multisearch.cu")
+
+ConfigureTest(SEARCH_TEST "${SEARCH_TEST_SRC}")
 
 ###################################################################################################
 # - sort tests ------------------------------------------------------------------------------------

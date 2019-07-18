@@ -85,6 +85,7 @@
 - PR #1745 Add rounding of numeric columns via Numba
 - PR #1772 JSON reader: add support for BytesIO and StringIO input
 - PR #1527 Support GDF_BOOL8 in readers and writers
+
 - PR #1819 Logical operators (AND, OR, NOT) for libcudf and cuDF
 - PR #1813 ORC Reader: Add support for stripe selection
 - PR #1828 JSON Reader: add suport for bool8 columns
@@ -122,6 +123,7 @@
 - PR #1767 Speed up Python unit tests
 - PR #1770 Added build.sh script, updated CI scripts and documentation
 - PR #1739 ORC Reader: Add more pytest coverage
+<<<<<<< HEAD
 - PR #1696 Added null support in `Series.replace()`.
 - PR #1390 Added some basic utility functions for `gdf_column`'s
 - PR #1791 Added general column comparison code for testing
@@ -169,6 +171,13 @@
 - PR #2050 Namespace IO readers and add back free-form `read_xxx` functions
 - PR #2104 Add a functional ``sort=`` keyword argument to groupby
 - PR #2108 Add `find_and_replace` for StringColumn for replacing single values
+=======
+- PR #1795 Add printing of git submodule info to `print_env.sh`
+- PR #1796 Removing old sort based group by code and gdf_filter
+- PR #1811 Added funtions for copying/allocating `cudf::table`s
+- PR #1390 Added some basic utility functions for `gdf_column`'s
+- PR #1791 Added general column comparison code for testing
+>>>>>>> origin/feature/static-build
 
 ## Bug Fixes
 
