@@ -399,6 +399,9 @@ install(TARGETS cudf
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/cudf
         DESTINATION include)
 
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/string
+        DESTINATION include)
+
 ###################################################################################################
 # - make documentation ----------------------------------------------------------------------------
 
