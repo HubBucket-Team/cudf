@@ -23,7 +23,6 @@
  * function implementations
  */
 
-#include <utilities/error_utils.hpp>
 #include <utilities/integer_utils.hpp>
 #include <cudf/types.h>
 
@@ -85,9 +84,10 @@ struct scoped_stream {
         }
     }
 };
-
 } // namespace cuda
+
 } // namespace util
+
 } // namespace cudf
 
 #endif // CUDF_UTILITIES_CUDA_UTIL_CUH_

@@ -24,9 +24,8 @@
 
 #include "groupby_compute_api.h"
 #include "aggregation_operations.hpp"
-#include <type_traits>
 
-namespace { // anonymous namespace
+#include <type_traits>
 
 /* --------------------------------------------------------------------------*/
 /** 
@@ -362,8 +361,6 @@ struct multi_pass_avg_functor {
     return GDF_UNSUPPORTED_DTYPE;
   }
 };
-
-} // anonymous namespace
 
 /* --------------------------------------------------------------------------*/
 /** 
