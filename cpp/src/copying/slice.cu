@@ -25,6 +25,7 @@
 #include <nvstrings/NVCategory.h>
 #include <bitmask/bit_mask.cuh> 
 #include "copying/slice.hpp"
+#include <string/nvcategory_util.hpp>
 
 namespace cudf {
 
@@ -214,9 +215,7 @@ public:
       }
 
       if (output_column->dtype == GDF_STRING_CATEGORY){
-        NVCategory* new_category = static_cast<NVCategory*>(input_column_.dtype_info.category)->gather_and_remap(
-                      static_cast<int*>(output_column->data), (unsigned int)output_column->size);
-        output_column->dtype_info.category = new_category;
+        CUDF_TRY(nvcategory_gather(output_column, static_cast<NVCategory*>(input_column_.dtype_info.category)));
       }
     }
   }
