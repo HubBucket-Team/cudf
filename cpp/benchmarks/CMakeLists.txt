@@ -70,24 +70,18 @@ set(GATHER_BENCH_SRC
 ConfigureBench(GATHER_BENCH "${GATHER_BENCH_SRC}")
 
 ###################################################################################################
-# - `type_dispatcher` benchmark -------------------------------------------------------------------
+# - join benchmark --------------------------------------------------------------------------------
+
+set(JOIN_BENCH_SRC
+  "${CMAKE_CURRENT_SOURCE_DIR}/join/join_benchmark.cu")
+
+ConfigureBench(JOIN_BENCH "${JOIN_BENCH_SRC}")
+
+###################################################################################################
+# - type_dispatcher benchmark ---------------------------------------------------------------------
+
 
 set(TD_BENCH_SRC
   "${CMAKE_CURRENT_SOURCE_DIR}/type_dispatcher/type_dispatcher_benchmark.cu")
 
 ConfigureBench(TYPE_DISPATCHER_BENCH "${TD_BENCH_SRC}")
-
-# - apply_boolean_mask benchmark ------------------------------------------------------------------------------
-
-set(APPLY_BOOLEAN_MASK_BENCH_SRC
-  "${CMAKE_CURRENT_SOURCE_DIR}/stream_compaction/apply_boolean_mask_benchmark.cu")
-
-ConfigureBench(APPLY_BOOLEAN_MASK_BENCH "${APPLY_BOOLEAN_MASK_BENCH_SRC}")
-
-###################################################################################################
-# - search benchmark ------------------------------------------------------------------------------
-
-set(SEARCH_BENCH_SRC
-  "${CMAKE_CURRENT_SOURCE_DIR}/search/search_benchmark.cu")
-
-ConfigureBench(SEARCH_BENCH "${SEARCH_BENCH_SRC}")

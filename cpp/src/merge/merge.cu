@@ -259,8 +259,8 @@ table merge(table const& left_table,
         right_cols_sync[i] = new_right_column_ptr;
     }
 
-    table left_sync_table(left_cols_sync.data(), left_cols_sync.size());
-    table right_sync_table(right_cols_sync.data(), right_cols_sync.size());
+    table left_sync_table(left_cols_sync);
+    table right_sync_table(right_cols_sync);
 
     std::vector<gdf_column*> left_key_cols_vect(key_cols.size());
     std::transform(key_cols.cbegin(), key_cols.cend(), left_key_cols_vect.begin(),
