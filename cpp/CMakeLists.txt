@@ -50,7 +50,7 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 if(CMAKE_COMPILER_IS_GNUCXX)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
 
-    option(CMAKE_CXX11_ABI "Enable the GLIBCXX11 ABI" ON)
+    option(CMAKE_CXX11_ABI "Enable the GLIBCXX11 ABI" OFF)
     if(CMAKE_CXX11_ABI)
         message(STATUS "CUDF: Enabling the GLIBCXX11 ABI")
     else()
@@ -211,9 +211,9 @@ endif(BUILD_TESTS)
 # - add google benchmark --------------------------------------------------------------------------
 
 if(BUILD_BENCHMARKS)
-  
+
   include(ConfigureGoogleBenchmark)
-  
+
   if(GBENCH_FOUND)
     message(STATUS "Google C++ Benchmarking Framework (Google Benchmark) found in ${GBENCH_ROOT}")
     include_directories(${GBENCH_INCLUDE_DIR})
